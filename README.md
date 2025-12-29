@@ -2,45 +2,123 @@
 
 OpenCode plugin for persistent memory using [Supermemory](https://supermemory.ai).
 
+Your agent remembers what you tell it - across sessions, across projects.
+
 ## Installation
 
-```bash
-npx opencode-supermemory setup
-```
-
-Interactive wizard that:
-1. Installs plugin globally
-2. Creates `/supermemory-init` command
-3. Adds plugin to OpenCode config
-
-Then set your API key:
+### For Humans
 
 ```bash
-# Add to your shell profile (.zshrc, .bashrc, etc.)
-echo 'export SUPERMEMORY_API_KEY="your-api-key"' >> ~/.zshrc
-source ~/.zshrc
-
-# Or set temporarily for current session
-export SUPERMEMORY_API_KEY="your-api-key"  # from console.supermemory.ai
+bunx opencode-supermemory install
 ```
 
-Make sure `~/.config/opencode/opencode.json` contains the plugin:
+Then get your API key from [console.supermemory.ai](https://console.supermemory.ai) and set it:
 
+```bash
+export SUPERMEMORY_API_KEY="sm_..."
+```
+
+**Or let your agent do it** - paste this into OpenCode:
+```
+Install opencode-supermemory by following https://raw.githubusercontent.com/supermemoryai/opencode-supermemory/main/README.md
+```
+
+### For LLM Agents
+
+<details>
+<summary>Instructions for LLM Agents (click to expand)</summary>
+
+If you're an LLM agent helping set up opencode-supermemory, follow these steps:
+
+#### Step 1: Run the installer
+
+```bash
+bunx opencode-supermemory install --no-tui
+```
+
+This will:
+- Register the plugin in `~/.config/opencode/opencode.jsonc`
+- Create the `/supermemory-init` command
+
+#### Step 2: Verify the config
+
+```bash
+cat ~/.config/opencode/opencode.jsonc
+```
+
+Should contain:
 ```json
 {
   "plugin": ["opencode-supermemory"]
 }
 ```
 
+If not, add it manually:
+
+**JSONC:**
+```jsonc
+{
+  "plugin": [
+    "opencode-supermemory"
+    // ... other plugins
+  ]
+}
+```
+
+**JSON:**
+```json
+{
+  "plugin": ["opencode-supermemory"]
+}
+```
+
+#### Step 3: Configure API key
+
+Ask the user to get their API key from [console.supermemory.ai](https://console.supermemory.ai).
+
+Then set it via environment variable:
+
+```bash
+export SUPERMEMORY_API_KEY="sm_..."
+```
+
+Or create `~/.config/opencode/supermemory.jsonc`:
+
+```jsonc
+{
+  "apiKey": "sm_..."
+}
+```
+
+#### Step 4: Verify setup
+
+Tell the user to restart OpenCode and run:
+
+```bash
+opencode -c
+```
+
+They should see `supermemory` in the tools list. If not, check:
+1. Is `SUPERMEMORY_API_KEY` set?
+2. Is the plugin in `opencode.jsonc`?
+3. Check logs: `tail ~/.opencode-supermemory.log`
+
+#### Step 5: Initialize codebase memory (optional)
+
+Run `/supermemory-init` to have the agent explore and memorize the codebase.
+
+</details>
+
 ## Features
 
 ### Context Injection
 
-On first message, injects:
+On first message, the agent receives (invisible to user):
 - User profile (cross-project preferences)
 - Project memories (all project knowledge)
 - Relevant user memories (semantic search)
 
+Example of what the agent sees:
 ```
 [SUPERMEMORY]
 
@@ -55,6 +133,8 @@ Project Knowledge:
 Relevant Memories:
 - [82%] Build fails if .env.local missing
 ```
+
+The agent uses this context automatically - no manual prompting needed.
 
 ### Keyword Detection
 
@@ -134,16 +214,11 @@ Create `~/.config/opencode/supermemory.jsonc`:
   "injectProfile": true,
   
   // Prefix for container tags
-  "containerTagPrefix": "opencode",
-  
-  // LLM filter prompt for memory relevance
-  "filterPrompt": "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details."
+  "containerTagPrefix": "opencode"
 }
 ```
 
 All fields optional. Env var `SUPERMEMORY_API_KEY` takes precedence over config file.
-
-API timeout: 30s
 
 ## Usage with Oh My OpenCode
 
@@ -156,14 +231,6 @@ Add to `~/.config/opencode/oh-my-opencode.json`:
   "disabled_hooks": ["anthropic-auto-compact"]
 }
 ```
-
-This ensures supermemory's preemptive compaction (which preserves memories across sessions) works correctly instead of oh-my-opencode's default compaction.
-
-## Hooks
-
-Registered in `package.json`:
-- `chat.message` - Context injection on first message, keyword detection
-- `event` - Compaction monitoring and summary capture
 
 ## Development
 

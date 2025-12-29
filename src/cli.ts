@@ -6,7 +6,7 @@ import * as readline from "node:readline";
 
 const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
 const OPENCODE_COMMAND_DIR = join(OPENCODE_CONFIG_DIR, "command");
-const PLUGIN_NAME = "opencode-supermemory@latest";
+const PLUGIN_NAME = "opencode-supermemory";
 
 const SUPERMEMORY_INIT_COMMAND = `---
 description: Initialize Supermemory with comprehensive codebase knowledge
@@ -175,52 +175,10 @@ async function confirm(rl: readline.Interface, question: string): Promise<boolea
   });
 }
 
-async function installPlugin(): Promise<boolean> {
-  const { execSync } = await import("node:child_process");
-  
-  // Detect package manager
-  let pm = "npm";
-  try {
-    execSync("bun --version", { stdio: "ignore" });
-    pm = "bun";
-  } catch {
-    try {
-      execSync("pnpm --version", { stdio: "ignore" });
-      pm = "pnpm";
-    } catch {
-      // fallback to npm
-    }
-  }
-
-  console.log(`Installing ${PLUGIN_NAME} with ${pm}...`);
-  
-  try {
-    execSync(`${pm} install -g ${PLUGIN_NAME}`, { stdio: "inherit" });
-    return true;
-  } catch {
-    console.error("Failed to install plugin globally.");
-    return false;
-  }
-}
-
-function createCommand(): boolean {
-  mkdirSync(OPENCODE_COMMAND_DIR, { recursive: true });
-  const commandPath = join(OPENCODE_COMMAND_DIR, "supermemory-init.md");
-
-  if (existsSync(commandPath)) {
-    console.log(`Command already exists at ${commandPath}`);
-    return true;
-  }
-
-  writeFileSync(commandPath, SUPERMEMORY_INIT_COMMAND);
-  console.log(`Created /supermemory-init command`);
-  return true;
-}
-
 function findOpencodeConfig(): string | null {
   const candidates = [
-    join(OPENCODE_CONFIG_DIR, "config.jsonc"),
-    join(OPENCODE_CONFIG_DIR, "config.json"),
+    join(OPENCODE_CONFIG_DIR, "opencode.jsonc"),
+    join(OPENCODE_CONFIG_DIR, "opencode.json"),
   ];
 
   for (const path of candidates) {
@@ -236,9 +194,8 @@ function addPluginToConfig(configPath: string): boolean {
   try {
     const content = readFileSync(configPath, "utf-8");
     
-    // Check if plugin already registered
     if (content.includes("opencode-supermemory")) {
-      console.log("Plugin already in config");
+      console.log("✓ Plugin already registered in config");
       return true;
     }
 
@@ -249,20 +206,16 @@ function addPluginToConfig(configPath: string): boolean {
     try {
       config = JSON.parse(jsonContent);
     } catch {
-      console.error("Failed to parse config file");
+      console.error("✗ Failed to parse config file");
       return false;
     }
 
-    // Add plugin to array
     const plugins = (config.plugin as string[]) || [];
     plugins.push(PLUGIN_NAME);
     config.plugin = plugins;
 
-    // Write back (preserve formatting if possible)
     if (configPath.endsWith(".jsonc")) {
-      // For JSONC, just append to plugin array in original content
       if (content.includes('"plugin"')) {
-        // Find plugin array and add to it
         const newContent = content.replace(
           /("plugin"\s*:\s*\[)([^\]]*?)(\])/,
           (_match, start, middle, end) => {
@@ -275,7 +228,6 @@ function addPluginToConfig(configPath: string): boolean {
         );
         writeFileSync(configPath, newContent);
       } else {
-        // No plugin key, add it
         const newContent = content.replace(
           /^(\s*\{)/,
           `$1\n  "plugin": ["${PLUGIN_NAME}"],`
@@ -283,112 +235,136 @@ function addPluginToConfig(configPath: string): boolean {
         writeFileSync(configPath, newContent);
       }
     } else {
-      // For JSON, just write formatted
       writeFileSync(configPath, JSON.stringify(config, null, 2));
     }
 
-    console.log(`Added ${PLUGIN_NAME} to ${configPath}`);
+    console.log(`✓ Added plugin to ${configPath}`);
     return true;
   } catch (err) {
-    console.error("Failed to update config:", err);
+    console.error("✗ Failed to update config:", err);
     return false;
   }
 }
 
 function createNewConfig(): boolean {
-  const configPath = join(OPENCODE_CONFIG_DIR, "config.jsonc");
+  const configPath = join(OPENCODE_CONFIG_DIR, "opencode.jsonc");
   mkdirSync(OPENCODE_CONFIG_DIR, { recursive: true });
   
-  const config = {
-    plugin: [PLUGIN_NAME],
-  };
+  const config = `{
+  "plugin": ["${PLUGIN_NAME}"]
+}
+`;
   
-  writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log(`Created ${configPath} with plugin registered`);
+  writeFileSync(configPath, config);
+  console.log(`✓ Created ${configPath}`);
   return true;
 }
 
-async function setup(): Promise<void> {
-  const rl = createReadline();
+function createCommand(): boolean {
+  mkdirSync(OPENCODE_COMMAND_DIR, { recursive: true });
+  const commandPath = join(OPENCODE_COMMAND_DIR, "supermemory-init.md");
 
-  console.log("\nopencode-supermemory setup\n");
+  writeFileSync(commandPath, SUPERMEMORY_INIT_COMMAND);
+  console.log(`✓ Created /supermemory-init command`);
+  return true;
+}
 
-  // Step 1: Install plugin globally
-  const shouldInstall = await confirm(rl, "Install opencode-supermemory globally?");
-  if (!shouldInstall) {
-    console.log("Aborted.");
-    rl.close();
-    process.exit(0);
-  }
+interface InstallOptions {
+  tui: boolean;
+}
 
-  const installed = await installPlugin();
-  if (!installed) {
-    console.log("Aborted.");
-    rl.close();
-    process.exit(1);
-  }
+async function install(options: InstallOptions): Promise<number> {
+  console.log("\n🧠 opencode-supermemory installer\n");
 
-  // Step 2: Create command
-  const shouldCreateCommand = await confirm(rl, "Add /supermemory-init command?");
-  if (!shouldCreateCommand) {
-    console.log("Aborted.");
-    rl.close();
-    process.exit(0);
-  }
+  const rl = options.tui ? createReadline() : null;
 
-  createCommand();
-
-  // Step 3: Add to config
+  // Step 1: Register plugin in config
+  console.log("Step 1: Register plugin in OpenCode config");
   const configPath = findOpencodeConfig();
   
   if (configPath) {
-    const shouldModifyConfig = await confirm(rl, `Add plugin to ${configPath}?`);
-    if (!shouldModifyConfig) {
-      console.log("Aborted.");
-      rl.close();
-      process.exit(0);
+    if (options.tui) {
+      const shouldModify = await confirm(rl!, `Add plugin to ${configPath}?`);
+      if (!shouldModify) {
+        console.log("Skipped.");
+      } else {
+        addPluginToConfig(configPath);
+      }
+    } else {
+      addPluginToConfig(configPath);
     }
-    addPluginToConfig(configPath);
   } else {
-    const shouldCreateConfig = await confirm(rl, "No OpenCode config found. Create one?");
-    if (!shouldCreateConfig) {
-      console.log("Aborted.");
-      rl.close();
-      process.exit(0);
+    if (options.tui) {
+      const shouldCreate = await confirm(rl!, "No OpenCode config found. Create one?");
+      if (!shouldCreate) {
+        console.log("Skipped.");
+      } else {
+        createNewConfig();
+      }
+    } else {
+      createNewConfig();
     }
-    createNewConfig();
   }
 
-  console.log("\nSetup complete!");
-  console.log("Set SUPERMEMORY_API_KEY and restart OpenCode.");
-  
-  rl.close();
+  // Step 2: Create /supermemory-init command
+  console.log("\nStep 2: Create /supermemory-init command");
+  if (options.tui) {
+    const shouldCreate = await confirm(rl!, "Add /supermemory-init command?");
+    if (!shouldCreate) {
+      console.log("Skipped.");
+    } else {
+      createCommand();
+    }
+  } else {
+    createCommand();
+  }
+
+  // Step 3: API key instructions
+  console.log("\n" + "─".repeat(50));
+  console.log("\n🔑 Final step: Set your API key\n");
+  console.log("Get your API key from: https://console.supermemory.ai");
+  console.log("\nThen add to your shell profile:\n");
+  console.log('  export SUPERMEMORY_API_KEY="sm_..."');
+  console.log("\nOr create ~/.config/opencode/supermemory.jsonc:\n");
+  console.log('  { "apiKey": "sm_..." }');
+  console.log("\n" + "─".repeat(50));
+  console.log("\n✓ Setup complete! Restart OpenCode to activate.\n");
+
+  if (rl) rl.close();
+  return 0;
 }
 
 function printHelp(): void {
   console.log(`
-opencode-supermemory CLI
+opencode-supermemory - Persistent memory for OpenCode agents
 
 Commands:
-  setup    Interactive setup wizard
+  install          Install and configure the plugin
+    --no-tui       Run in non-interactive mode (for LLM agents)
 
 Examples:
-  npx opencode-supermemory setup
-  bunx opencode-supermemory setup
+  bunx opencode-supermemory install
+  bunx opencode-supermemory install --no-tui
 `);
 }
 
 const args = process.argv.slice(2);
 
-if (args.length === 0 || args[0] === "help" || args[0] === "--help") {
+if (args.length === 0 || args[0] === "help" || args[0] === "--help" || args[0] === "-h") {
   printHelp();
   process.exit(0);
 }
 
-if (args[0] === "setup") {
-  setup();
+if (args[0] === "install") {
+  const noTui = args.includes("--no-tui");
+  install({ tui: !noTui }).then((code) => process.exit(code));
+} else if (args[0] === "setup") {
+  // Backwards compatibility
+  console.log("Note: 'setup' is deprecated. Use 'install' instead.\n");
+  const noTui = args.includes("--no-tui");
+  install({ tui: !noTui }).then((code) => process.exit(code));
 } else {
-  console.error(`Unknown command: ${args.join(" ")}`);
+  console.error(`Unknown command: ${args[0]}`);
   printHelp();
   process.exit(1);
 }
