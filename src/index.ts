@@ -391,18 +391,15 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
                 }
 
                 const scope = args.scope || "project";
-                const containerTag =
-                  scope === "user" ? tags.user : tags.project;
 
-                const result = await supermemoryClient.forgetMemory(
-                  containerTag,
+                const result = await supermemoryClient.deleteMemory(
                   args.memoryId
                 );
 
                 if (!result) {
                   return JSON.stringify({
                     success: false,
-                    error: "Failed to forget memory",
+                    error: "Failed to delete memory",
                   });
                 }
 

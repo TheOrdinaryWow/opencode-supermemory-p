@@ -98,17 +98,15 @@ export class SupermemoryClient {
     }
   }
 
-  async forgetMemory(containerTag: string, memoryId?: string) {
+  async deleteMemory(memoryId: string) {
     try {
-      return await withTimeout(
-        this.getClient().memories.forget({
-          containerTag,
-          id: memoryId,
-        }),
+      await withTimeout(
+        this.getClient().memories.delete(memoryId),
         TIMEOUT_MS
       );
+      return { success: true };
     } catch (error) {
-      console.error("Supermemory: forget memory failed", error);
+      console.error("Supermemory: delete memory failed", error);
       return null;
     }
   }
