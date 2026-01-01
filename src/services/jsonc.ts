@@ -14,8 +14,19 @@ export function stripJsoncComments(content: string): string {
     const nextChar = content[i + 1];
 
     if (!inSingleLineComment && !inMultiLineComment) {
-      if (char === '"' && (i === 0 || content[i - 1] !== "\\")) {
-        inString = !inString;
+      if (char === '"') {
+        // Count consecutive backslashes before this quote
+        let backslashCount = 0;
+        let j = i - 1;
+        while (j >= 0 && content[j] === "\\") {
+          backslashCount++;
+          j--;
+        }
+        // Quote is escaped only if preceded by ODD number of backslashes
+        // e.g., \" = escaped, \\" = not escaped (escaped backslash + quote)
+        if (backslashCount % 2 === 0) {
+          inString = !inString;
+        }
         result += char;
         i++;
         continue;
