@@ -1,4 +1,22 @@
 #!/bin/bash
+#
+# Release script for opencode-supermemory
+#
+# Usage:
+#   ./scripts/release.sh [patch|minor|major]
+#
+# Examples:
+#   ./scripts/release.sh patch   # 0.1.4 → 0.1.5
+#   ./scripts/release.sh minor   # 0.1.4 → 0.2.0
+#   ./scripts/release.sh major   # 0.1.4 → 1.0.0
+#
+# After running, push to trigger the GitHub Actions release workflow:
+#   git push && git push --tags
+#
+# Prerequisites:
+#   - jq installed
+#   - NPM_TOKEN secret configured in GitHub repo settings
+#
 set -e
 
 BUMP_TYPE="${1:-patch}"
