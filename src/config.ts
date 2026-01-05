@@ -18,7 +18,27 @@ interface SupermemoryConfig {
   injectProfile?: boolean;
   containerTagPrefix?: string;
   filterPrompt?: string;
+  keywordPatterns?: string[];
 }
+
+const DEFAULT_KEYWORD_PATTERNS = [
+  "remember",
+  "memorize",
+  "save\\s+this",
+  "note\\s+this",
+  "keep\\s+in\\s+mind",
+  "don'?t\\s+forget",
+  "learn\\s+this",
+  "store\\s+this",
+  "record\\s+this",
+  "make\\s+a\\s+note",
+  "take\\s+note",
+  "jot\\s+down",
+  "commit\\s+to\\s+memory",
+  "remember\\s+that",
+  "never\\s+forget",
+  "always\\s+remember",
+];
 
 const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey">> = {
   similarityThreshold: 0.6,
@@ -28,7 +48,17 @@ const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey">> = {
   injectProfile: true,
   containerTagPrefix: "opencode",
   filterPrompt: "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
+  keywordPatterns: [],
 };
+
+function isValidRegex(pattern: string): boolean {
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function loadConfig(): SupermemoryConfig {
   for (const path of CONFIG_FILES) {
@@ -57,6 +87,10 @@ export const CONFIG = {
   injectProfile: fileConfig.injectProfile ?? DEFAULTS.injectProfile,
   containerTagPrefix: fileConfig.containerTagPrefix ?? DEFAULTS.containerTagPrefix,
   filterPrompt: fileConfig.filterPrompt ?? DEFAULTS.filterPrompt,
+  keywordPatterns: [
+    ...DEFAULT_KEYWORD_PATTERNS,
+    ...(fileConfig.keywordPatterns ?? []).filter(isValidRegex),
+  ],
 };
 
 export function isConfigured(): boolean {
