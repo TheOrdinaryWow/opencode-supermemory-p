@@ -1,18 +1,14 @@
 import { beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import type { AppError } from "../../src/shared/errors.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // =====================================================================
 // Background — what we are pinning
 //
-// `src/services/client.ts` wraps the official `supermemory` SDK. The
-// wrapper translates every SDK call into a `{ success, ...data }` /
-// `{ success: false, error, ...fallback }` envelope. The shape of those
-// envelopes is currently INCONSISTENT across the eight public methods
-// (each method has its own fallback fields on error). T15 will unify
-// these into a `Result<T, E>` type — these tests freeze the current
-// shape so that refactor can rely on test failures to flag any
-// accidental behavior drift.
+// `src/services/client.ts` re-exports the memory client. The
+// production implementation returns Result<T, AppError> for expected
+// SDK/config/network/auth failures while preserving the SDK call shapes.
 //
 // We avoid the HTTP layer entirely by mocking the `supermemory` module
 // itself via `mock.module`. The mock exposes a class whose method
@@ -124,6 +120,11 @@ mock.module(CONFIG_ABS, () => ({
 // Dynamic import so both mocks are in effect before client.ts loads.
 let SupermemoryClient: typeof import("../../src/services/client.ts").SupermemoryClient;
 
+function expectErrorKind(error: AppError, kind: AppError["kind"], message: string): void {
+  expect(error.kind).toBe(kind);
+  expect(error.message).toBe(message);
+}
+
 beforeAll(async () => {
   const mod = await import("../../src/services/client.ts");
   SupermemoryClient = mod.SupermemoryClient;
@@ -162,13 +163,11 @@ describe("SupermemoryClient.searchMemories", () => {
     const client = new SupermemoryClient();
     const out = await client.searchMemories("q", "tag_a");
 
-    // Shape is `success: true` spread over the SDK result. Inconsistency
-    // note: error path adds `results: [], total: 0, timing: 0` fields,
-    // success path does NOT redeclare them — they come from spread.
-    expect(out.success).toBe(true);
-    expect((out as { results: unknown[] }).results).toEqual([{ id: "mem_1", content: "hello", similarity: 0.9 }]);
-    expect((out as { total: number }).total).toBe(1);
-    expect((out as { timing: number }).timing).toBe(12);
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.results as unknown[]).toEqual([{ id: "mem_1", content: "hello", similarity: 0.9 }]);
+    expect(out.value.total).toBe(1);
+    expect(out.value.timing).toBe(12);
 
     // SDK call shape pinned: searchMode "hybrid", threshold/limit from CONFIG.
     expect(sdkState.searchMemories.calls).toHaveLength(1);
@@ -188,14 +187,9 @@ describe("SupermemoryClient.searchMemories", () => {
     const client = new SupermemoryClient();
     const out = await client.searchMemories("q", "tag_a");
 
-    // T15 will unify; for now this is the literal shape callers depend on.
-    expect(out).toEqual({
-      success: false,
-      error: "boom: 503 service unavailable",
-      results: [],
-      total: 0,
-      timing: 0,
-    });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "boom: 503 service unavailable");
   });
 });
 
@@ -209,8 +203,9 @@ describe("SupermemoryClient.getProfile", () => {
     const client = new SupermemoryClient();
     const out = await client.getProfile("tag_user", "search?");
 
-    expect(out.success).toBe(true);
-    expect((out as { profile: unknown }).profile).toEqual({ static: ["a"], dynamic: ["b"] });
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.profile).toEqual({ static: ["a"], dynamic: ["b"] });
     expect(sdkState.profile.calls[0]?.args[0]).toEqual({ containerTag: "tag_user", q: "search?" });
   });
 
@@ -221,11 +216,9 @@ describe("SupermemoryClient.getProfile", () => {
     const client = new SupermemoryClient();
     const out = await client.getProfile("tag_user");
 
-    expect(out).toEqual({
-      success: false,
-      error: "401 unauthorized",
-      profile: null,
-    });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "AuthError", "401 unauthorized");
   });
 });
 
@@ -239,8 +232,9 @@ describe("SupermemoryClient.addMemory", () => {
     const client = new SupermemoryClient();
     const out = await client.addMemory("hello world", "tag_p", { type: "preference", tool: "test" });
 
-    expect(out.success).toBe(true);
-    expect((out as { id: string }).id).toBe("mem_new_123");
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.id).toBe("mem_new_123");
 
     expect(sdkState.addMemory.calls[0]?.args[0]).toEqual({
       content: "hello world",
@@ -256,7 +250,9 @@ describe("SupermemoryClient.addMemory", () => {
     const client = new SupermemoryClient();
     const out = await client.addMemory("x", "tag_p");
 
-    expect(out).toEqual({ success: false, error: "rate limited" });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "rate limited");
   });
 });
 
@@ -270,10 +266,7 @@ describe("SupermemoryClient.deleteMemory", () => {
     const client = new SupermemoryClient();
     const out = await client.deleteMemory("mem_abc");
 
-    // Note: this method is the ONLY one that drops the `as const`
-    // narrow on success. The result type is plain `{success: boolean}`
-    // here. Pinned so the T15 unification surfaces it.
-    expect(out).toEqual({ success: true });
+    expect(out).toEqual({ ok: true, value: { success: true } });
     expect(sdkState.deleteMemory.calls[0]?.args[0]).toBe("mem_abc");
   });
 
@@ -284,7 +277,9 @@ describe("SupermemoryClient.deleteMemory", () => {
     const client = new SupermemoryClient();
     const out = await client.deleteMemory("mem_abc");
 
-    expect(out).toEqual({ success: false, error: "not found" });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "not found");
   });
 });
 
@@ -301,8 +296,9 @@ describe("SupermemoryClient.listMemories", () => {
     const client = new SupermemoryClient();
     const out = await client.listMemories("tag_p");
 
-    expect(out.success).toBe(true);
-    expect((out as { memories: unknown[] }).memories).toEqual([{ id: "m1", content: "c1" }]);
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.memories as unknown[]).toEqual([{ id: "m1", content: "c1" }]);
 
     // SDK options pinned (note: containerTags is an ARRAY here, not a string).
     expect(sdkState.listMemories.calls[0]?.args[0]).toEqual({
@@ -322,12 +318,9 @@ describe("SupermemoryClient.listMemories", () => {
     const out = await client.listMemories("tag_p", 50);
 
     // Custom limit also forwarded.
-    expect(out).toEqual({
-      success: false,
-      error: "oops",
-      memories: [],
-      pagination: { currentPage: 1, totalItems: 0, totalPages: 0 },
-    });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "oops");
   });
 });
 
@@ -342,7 +335,9 @@ describe("SupermemoryClient.ingestConversation", () => {
     const client = new SupermemoryClient();
     const out = await client.ingestConversation("conv_1", [], ["tag_a"]);
 
-    expect(out).toEqual({ success: false, error: "No messages to ingest" });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "ValidationError", "No messages to ingest");
     expect(sdkState.addMemory.calls).toHaveLength(0);
   });
 
@@ -351,7 +346,9 @@ describe("SupermemoryClient.ingestConversation", () => {
     // Both entries collapse to empty after the `tag.length > 0` filter on line 160.
     const out = await client.ingestConversation("conv_1", [{ role: "user", content: "hi" }], ["", ""]);
 
-    expect(out).toEqual({ success: false, error: "At least one containerTag is required" });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "ValidationError", "At least one containerTag is required");
     expect(sdkState.addMemory.calls).toHaveLength(0);
   });
 
@@ -367,9 +364,10 @@ describe("SupermemoryClient.ingestConversation", () => {
       ["tag_p"],
     );
 
-    expect(out.success).toBe(true);
-    expect((out as { status: string }).status).toBe("stored");
-    expect((out as { storedMemoryIds: string[] }).storedMemoryIds).toEqual(["mem_stored_1"]);
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.status).toBe("stored");
+    expect(out.value.storedMemoryIds).toEqual(["mem_stored_1"]);
 
     // Verify the formatted content reaches addMemory.
     const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
@@ -453,8 +451,9 @@ second"
       ["tag_a", "tag_b", "tag_a"],
     );
 
-    expect(out.success).toBe(true);
-    expect((out as { status: string }).status).toBe("stored");
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.status).toBe("stored");
     expect(sdkState.addMemory.calls).toHaveLength(2);
 
     const firstCall = sdkState.addMemory.calls[0]?.args[0] as { containerTag: string; metadata: Record<string, unknown> };
@@ -477,9 +476,10 @@ second"
     const client = new SupermemoryClient();
     const out = await client.ingestConversation("conv_p", [{ role: "user", content: "x" }], ["tag_a", "tag_b", "tag_c"]);
 
-    expect(out.success).toBe(true);
-    expect((out as { status: string }).status).toBe("partial");
-    expect((out as { storedMemoryIds: string[] }).storedMemoryIds).toEqual(["mem_ok", "mem_ok_3"]);
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value.status).toBe("partial");
+    expect(out.value.storedMemoryIds).toEqual(["mem_ok", "mem_ok_3"]);
   });
 
   it("error: when EVERY tag fails, returns { success: false, error: <first error> } (no successful id is reported)", async () => {
@@ -489,7 +489,9 @@ second"
     const client = new SupermemoryClient();
     const out = await client.ingestConversation("conv_f", [{ role: "user", content: "x" }], ["tag_a", "tag_b"]);
 
-    expect(out).toEqual({ success: false, error: "all fail" });
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "all fail");
   });
 
   it("success: oversized transcript is truncated to MAX_CONVERSATION_CHARS (100_000) with `\\n...[truncated]` suffix", async () => {

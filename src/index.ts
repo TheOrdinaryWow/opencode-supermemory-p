@@ -322,9 +322,13 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
                 ]);
 
                 if (!userResult.success || !projectResult.success) {
+                  const errorMessage =
+                    (!userResult.success ? userResult.error : undefined) ||
+                    (!projectResult.success ? projectResult.error : undefined) ||
+                    "Failed to search memories";
                   return JSON.stringify({
                     success: false,
-                    error: userResult.error || projectResult.error || "Failed to search memories",
+                    error: errorMessage,
                   });
                 }
 

@@ -1,145 +1,64 @@
-import Supermemory from "supermemory";
+import type { AppError } from "../shared/errors.js";
+import type { Result } from "../shared/result.js";
+import { supermemoryClient as resultClient } from "../memory/client.js";
+import type { ConversationMessage, MemoryType } from "../types/index.js";
 
-import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
-import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
-import { log } from "./logger.js";
+export * from "../memory/client.js";
 
-const TIMEOUT_MS = 30000;
-const MAX_CONVERSATION_CHARS = 100_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms))]);
+// Legacy adapter: unwraps Result and returns old legacy shape.
+// Used by src/index.ts until T19 refactors tool modes.
+export function unwrapOrLegacyShape<T, F>(result: Result<T, AppError>, fallback: F): T | F {
+  return result.ok ? result.value : fallback;
 }
 
-export class SupermemoryClient {
-  private client: Supermemory | null = null;
+type LegacyFailure<T = object> = { success: false; error: string } & T;
 
-  private formatConversationMessage(message: ConversationMessage): string {
-    const content =
-      typeof message.content === "string"
-        ? message.content
-        : message.content.map((part) => (part.type === "text" ? part.text : `[image] ${part.imageUrl.url}`)).join("\n");
-
-    const trimmed = content.trim();
-    if (trimmed.length === 0) {
-      return `[${message.role}]`;
-    }
-    return `[${message.role}] ${trimmed}`;
-  }
-
-  private formatConversationTranscript(messages: ConversationMessage[]): string {
-    return messages.map((message, idx) => `${idx + 1}. ${this.formatConversationMessage(message)}`).join("\n");
-  }
-
-  private getClient(): Supermemory {
-    if (!this.client) {
-      if (!isConfigured()) {
-        throw new Error("SUPERMEMORY_API_KEY not set");
-      }
-      this.client = new Supermemory({ apiKey: SUPERMEMORY_API_KEY });
-      this.client.settings.update({
-        shouldLLMFilter: true,
-        filterPrompt: CONFIG.filterPrompt,
-      });
-    }
-    return this.client;
-  }
-
+export const supermemoryClient = {
   async searchMemories(query: string, containerTag: string) {
-    log("searchMemories: start", { containerTag });
-    try {
-      const result = await withTimeout(
-        this.getClient().search.memories({
-          q: query,
-          containerTag,
-          threshold: CONFIG.similarityThreshold,
-          limit: CONFIG.maxMemories,
-          searchMode: "hybrid",
-        }),
-        TIMEOUT_MS,
-      );
-      log("searchMemories: success", { count: result.results?.length || 0 });
-      return { success: true as const, ...result };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log("searchMemories: error", { error: errorMessage });
-      return { success: false as const, error: errorMessage, results: [], total: 0, timing: 0 };
-    }
-  }
+    const fallback: LegacyFailure<{ results: never[]; total: number; timing: number }> = {
+      success: false as const,
+      error: "Failed to search memories",
+      results: [],
+      total: 0,
+      timing: 0,
+    };
+    return unwrapOrLegacyShape(await resultClient.searchMemories(query, containerTag), fallback);
+  },
 
   async getProfile(containerTag: string, query?: string) {
-    log("getProfile: start", { containerTag });
-    try {
-      const result = await withTimeout(
-        this.getClient().profile({
-          containerTag,
-          q: query,
-        }),
-        TIMEOUT_MS,
-      );
-      log("getProfile: success", { hasProfile: !!result?.profile });
-      return { success: true as const, ...result };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log("getProfile: error", { error: errorMessage });
-      return { success: false as const, error: errorMessage, profile: null };
-    }
-  }
+    const fallback: LegacyFailure<{ profile: null }> = {
+      success: false as const,
+      error: "Failed to fetch profile",
+      profile: null,
+    };
+    return unwrapOrLegacyShape(await resultClient.getProfile(containerTag, query), fallback);
+  },
 
   async addMemory(content: string, containerTag: string, metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown }) {
-    log("addMemory: start", { containerTag, contentLength: content.length });
-    try {
-      const result = await withTimeout(
-        this.getClient().memories.add({
-          content,
-          containerTag,
-          metadata: metadata as Record<string, string | number | boolean | string[]>,
-        }),
-        TIMEOUT_MS,
-      );
-      log("addMemory: success", { id: result.id });
-      return { success: true as const, ...result };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log("addMemory: error", { error: errorMessage });
-      return { success: false as const, error: errorMessage };
-    }
-  }
+    const fallback: LegacyFailure = {
+      success: false as const,
+      error: "Failed to add memory",
+    };
+    return unwrapOrLegacyShape(await resultClient.addMemory(content, containerTag, metadata), fallback);
+  },
 
   async deleteMemory(memoryId: string) {
-    log("deleteMemory: start", { memoryId });
-    try {
-      await withTimeout(this.getClient().memories.delete(memoryId), TIMEOUT_MS);
-      log("deleteMemory: success", { memoryId });
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log("deleteMemory: error", { memoryId, error: errorMessage });
-      return { success: false, error: errorMessage };
-    }
-  }
+    const fallback: LegacyFailure = {
+      success: false,
+      error: "Failed to delete memory",
+    };
+    return unwrapOrLegacyShape(await resultClient.deleteMemory(memoryId), fallback);
+  },
 
   async listMemories(containerTag: string, limit = 20) {
-    log("listMemories: start", { containerTag, limit });
-    try {
-      const result = await withTimeout(
-        this.getClient().memories.list({
-          containerTags: [containerTag],
-          limit,
-          order: "desc",
-          sort: "createdAt",
-          includeContent: true,
-        }),
-        TIMEOUT_MS,
-      );
-      log("listMemories: success", { count: result.memories?.length || 0 });
-      return { success: true as const, ...result };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log("listMemories: error", { error: errorMessage });
-      return { success: false as const, error: errorMessage, memories: [], pagination: { currentPage: 1, totalItems: 0, totalPages: 0 } };
-    }
-  }
+    const fallback: LegacyFailure<{ memories: never[]; pagination: { currentPage: number; totalItems: number; totalPages: number } }> = {
+      success: false as const,
+      error: "Failed to list memories",
+      memories: [],
+      pagination: { currentPage: 1, totalItems: 0, totalPages: 0 },
+    };
+    return unwrapOrLegacyShape(await resultClient.listMemories(containerTag, limit), fallback);
+  },
 
   async ingestConversation(
     conversationId: string,
@@ -147,74 +66,10 @@ export class SupermemoryClient {
     containerTags: string[],
     metadata?: Record<string, string | number | boolean>,
   ) {
-    log("ingestConversation: start", {
-      conversationId,
-      messageCount: messages.length,
-      containerTags,
-    });
-
-    if (messages.length === 0) {
-      return { success: false as const, error: "No messages to ingest" };
-    }
-
-    const uniqueTags = [...new Set(containerTags)].filter((tag) => tag.length > 0);
-    if (uniqueTags.length === 0) {
-      return { success: false as const, error: "At least one containerTag is required" };
-    }
-
-    const transcript = this.formatConversationTranscript(messages);
-    const rawContent = `[Conversation ${conversationId}]\n${transcript}`;
-    const content =
-      rawContent.length > MAX_CONVERSATION_CHARS ? `${rawContent.slice(0, MAX_CONVERSATION_CHARS)}\n...[truncated]` : rawContent;
-
-    const ingestMetadata = {
-      type: "conversation" as const,
-      conversationId,
-      messageCount: messages.length,
-      originalContainerTags: uniqueTags,
-      ...metadata,
+    const fallback: LegacyFailure = {
+      success: false as const,
+      error: "Failed to ingest conversation",
     };
-
-    const savedIds: string[] = [];
-    let firstError: string | null = null;
-
-    for (const tag of uniqueTags) {
-      const result = await this.addMemory(content, tag, ingestMetadata);
-      if (result.success) {
-        savedIds.push(result.id);
-      } else if (!firstError) {
-        firstError = result.error || "Failed to store conversation";
-      }
-    }
-
-    if (savedIds.length === 0) {
-      log("ingestConversation: error", { conversationId, error: firstError });
-      return {
-        success: false as const,
-        error: firstError || "Failed to ingest conversation",
-      };
-    }
-
-    const status = savedIds.length === uniqueTags.length ? "stored" : "partial";
-    const response: ConversationIngestResponse = {
-      id: savedIds[0],
-      conversationId,
-      status,
-    };
-
-    log("ingestConversation: success", {
-      conversationId,
-      status,
-      storedCount: savedIds.length,
-      requestedCount: uniqueTags.length,
-    });
-
-    return {
-      success: true as const,
-      ...response,
-      storedMemoryIds: savedIds,
-    };
-  }
-}
-
-export const supermemoryClient = new SupermemoryClient();
+    return unwrapOrLegacyShape(await resultClient.ingestConversation(conversationId, messages, containerTags, metadata), fallback);
+  },
+};
