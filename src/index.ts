@@ -1,6 +1,7 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 
 import { handleChatMessage } from "./chat/handler.js";
+import { createModelLimitLookup } from "./compaction/model-limits.js";
 import { getConfig } from "./config/loader.js";
 import { handleEvent } from "./events/handler.js";
 import { type CompactionContext, createCompactionHook } from "./compaction/index.js";
@@ -33,20 +34,4 @@ function createDeps(ctx: PluginInput) {
   const log = defaultLogger.info.bind(defaultLogger);
   log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured() }); if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
   return { client: supermemoryClient, config, tags, injectedSessions: sessionState, log, isConfigured };
-}
-
-function createModelLimitLookup(ctx: PluginInput, log: (message: string, data?: unknown) => void) {
-  const modelLimits = new Map<string, number>();
-  (async () => {
-    try {
-      const response = await ctx.client.provider.list();
-      for (const provider of response.data?.all ?? []) {
-        for (const [modelId, model] of Object.entries(provider.models ?? {})) if (model.limit?.context) modelLimits.set(`${provider.id}/${modelId}`, model.limit.context);
-      }
-      log("Model limits loaded", { count: modelLimits.size });
-    } catch (error) {
-      log("Failed to fetch model limits", { error: String(error) });
-    }
-  })();
-  return (providerID: string, modelID: string) => modelLimits.get(`${providerID}/${modelID}`);
 }
