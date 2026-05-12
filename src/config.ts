@@ -1,14 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
-import { stripJsoncComments } from "./services/jsonc.js";
+import { join } from "node:path";
+
 import { loadCredentials } from "./services/auth.js";
+import { stripJsoncComments } from "./services/jsonc.js";
 
 const CONFIG_DIR = join(homedir(), ".config", "opencode");
-const CONFIG_FILES = [
-  join(CONFIG_DIR, "supermemory.jsonc"),
-  join(CONFIG_DIR, "supermemory.json"),
-];
+const CONFIG_FILES = [join(CONFIG_DIR, "supermemory.jsonc"), join(CONFIG_DIR, "supermemory.json")];
 
 interface SupermemoryConfig {
   apiKey?: string;
@@ -51,9 +49,10 @@ const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey" | "userContainerTag" |
   maxProfileItems: 5,
   injectProfile: true,
   containerTagPrefix: "opencode",
-  filterPrompt: "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
+  filterPrompt:
+    "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
   keywordPatterns: [],
-  compactionThreshold: 0.80,
+  compactionThreshold: 0.8,
 };
 
 function isValidRegex(pattern: string): boolean {
@@ -66,7 +65,7 @@ function isValidRegex(pattern: string): boolean {
 }
 
 function validateCompactionThreshold(value: number | undefined): number {
-  if (value === undefined || typeof value !== 'number' || isNaN(value)) {
+  if (value === undefined || typeof value !== "number" || Number.isNaN(value)) {
     return DEFAULTS.compactionThreshold;
   }
   if (value <= 0 || value > 1) return DEFAULTS.compactionThreshold;
@@ -109,10 +108,7 @@ export const CONFIG = {
   userContainerTag: fileConfig.userContainerTag,
   projectContainerTag: fileConfig.projectContainerTag,
   filterPrompt: fileConfig.filterPrompt ?? DEFAULTS.filterPrompt,
-  keywordPatterns: [
-    ...DEFAULT_KEYWORD_PATTERNS,
-    ...(fileConfig.keywordPatterns ?? []).filter(isValidRegex),
-  ],
+  keywordPatterns: [...DEFAULT_KEYWORD_PATTERNS, ...(fileConfig.keywordPatterns ?? []).filter(isValidRegex)],
   compactionThreshold: validateCompactionThreshold(fileConfig.compactionThreshold),
 };
 

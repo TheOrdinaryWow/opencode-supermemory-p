@@ -1,22 +1,14 @@
 import Supermemory from "supermemory";
-import { CONFIG, SUPERMEMORY_API_KEY, isConfigured } from "../config.js";
+
+import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
+import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.js";
 import { log } from "./logger.js";
-import type {
-  ConversationIngestResponse,
-  ConversationMessage,
-  MemoryType,
-} from "../types/index.js";
 
 const TIMEOUT_MS = 30000;
 const MAX_CONVERSATION_CHARS = 100_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-    ),
-  ]);
+  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms))]);
 }
 
 export class SupermemoryClient {
@@ -26,13 +18,7 @@ export class SupermemoryClient {
     const content =
       typeof message.content === "string"
         ? message.content
-        : message.content
-            .map((part) =>
-              part.type === "text"
-                ? part.text
-                : `[image] ${part.imageUrl.url}`
-            )
-            .join("\n");
+        : message.content.map((part) => (part.type === "text" ? part.text : `[image] ${part.imageUrl.url}`)).join("\n");
 
     const trimmed = content.trim();
     if (trimmed.length === 0) {
@@ -42,9 +28,7 @@ export class SupermemoryClient {
   }
 
   private formatConversationTranscript(messages: ConversationMessage[]): string {
-    return messages
-      .map((message, idx) => `${idx + 1}. ${this.formatConversationMessage(message)}`)
-      .join("\n");
+    return messages.map((message, idx) => `${idx + 1}. ${this.formatConversationMessage(message)}`).join("\n");
   }
 
   private getClient(): Supermemory {
@@ -54,9 +38,9 @@ export class SupermemoryClient {
       }
       this.client = new Supermemory({ apiKey: SUPERMEMORY_API_KEY });
       this.client.settings.update({
-	     	shouldLLMFilter: true,
-	      filterPrompt: CONFIG.filterPrompt
-      })
+        shouldLLMFilter: true,
+        filterPrompt: CONFIG.filterPrompt,
+      });
     }
     return this.client;
   }
@@ -70,9 +54,9 @@ export class SupermemoryClient {
           containerTag,
           threshold: CONFIG.similarityThreshold,
           limit: CONFIG.maxMemories,
-          searchMode: "hybrid"
+          searchMode: "hybrid",
         }),
-        TIMEOUT_MS
+        TIMEOUT_MS,
       );
       log("searchMemories: success", { count: result.results?.length || 0 });
       return { success: true as const, ...result };
@@ -91,7 +75,7 @@ export class SupermemoryClient {
           containerTag,
           q: query,
         }),
-        TIMEOUT_MS
+        TIMEOUT_MS,
       );
       log("getProfile: success", { hasProfile: !!result?.profile });
       return { success: true as const, ...result };
@@ -102,11 +86,7 @@ export class SupermemoryClient {
     }
   }
 
-  async addMemory(
-    content: string,
-    containerTag: string,
-    metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown }
-  ) {
+  async addMemory(content: string, containerTag: string, metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown }) {
     log("addMemory: start", { containerTag, contentLength: content.length });
     try {
       const result = await withTimeout(
@@ -115,7 +95,7 @@ export class SupermemoryClient {
           containerTag,
           metadata: metadata as Record<string, string | number | boolean | string[]>,
         }),
-        TIMEOUT_MS
+        TIMEOUT_MS,
       );
       log("addMemory: success", { id: result.id });
       return { success: true as const, ...result };
@@ -129,10 +109,7 @@ export class SupermemoryClient {
   async deleteMemory(memoryId: string) {
     log("deleteMemory: start", { memoryId });
     try {
-      await withTimeout(
-        this.getClient().memories.delete(memoryId),
-        TIMEOUT_MS
-      );
+      await withTimeout(this.getClient().memories.delete(memoryId), TIMEOUT_MS);
       log("deleteMemory: success", { memoryId });
       return { success: true };
     } catch (error) {
@@ -153,7 +130,7 @@ export class SupermemoryClient {
           sort: "createdAt",
           includeContent: true,
         }),
-        TIMEOUT_MS
+        TIMEOUT_MS,
       );
       log("listMemories: success", { count: result.memories?.length || 0 });
       return { success: true as const, ...result };
@@ -168,7 +145,7 @@ export class SupermemoryClient {
     conversationId: string,
     messages: ConversationMessage[],
     containerTags: string[],
-    metadata?: Record<string, string | number | boolean>
+    metadata?: Record<string, string | number | boolean>,
   ) {
     log("ingestConversation: start", {
       conversationId,
@@ -188,9 +165,7 @@ export class SupermemoryClient {
     const transcript = this.formatConversationTranscript(messages);
     const rawContent = `[Conversation ${conversationId}]\n${transcript}`;
     const content =
-      rawContent.length > MAX_CONVERSATION_CHARS
-        ? `${rawContent.slice(0, MAX_CONVERSATION_CHARS)}\n...[truncated]`
-        : rawContent;
+      rawContent.length > MAX_CONVERSATION_CHARS ? `${rawContent.slice(0, MAX_CONVERSATION_CHARS)}\n...[truncated]` : rawContent;
 
     const ingestMetadata = {
       type: "conversation" as const,
@@ -220,10 +195,9 @@ export class SupermemoryClient {
       };
     }
 
-    const status =
-      savedIds.length === uniqueTags.length ? "stored" : "partial";
+    const status = savedIds.length === uniqueTags.length ? "stored" : "partial";
     const response: ConversationIngestResponse = {
-      id: savedIds[0]!,
+      id: savedIds[0],
       conversationId,
       status,
     };
@@ -241,7 +215,6 @@ export class SupermemoryClient {
       storedMemoryIds: savedIds,
     };
   }
-
 }
 
 export const supermemoryClient = new SupermemoryClient();

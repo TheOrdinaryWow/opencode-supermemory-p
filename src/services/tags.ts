@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
+
 import { CONFIG } from "../config.js";
 
 function sha256(input: string): string {

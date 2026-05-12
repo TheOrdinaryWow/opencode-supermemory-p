@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import type { Interface } from "node:readline";
 import * as readline from "node:readline";
+
+import { clearCredentials, loadCredentials, startAuthFlow } from "./services/auth.js";
 import { stripJsoncComments } from "./services/jsonc.js";
-import { startAuthFlow, clearCredentials, loadCredentials } from "./services/auth.js";
 
 const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
 const OPENCODE_COMMAND_DIR = join(OPENCODE_CONFIG_DIR, "command");
@@ -31,7 +33,7 @@ Explicit rules that should always be followed:
 - "Always run lint before tests"
 - "Use conventional commits format"
 
-### 2. Preferences (Style & Conventions)  
+### 2. Preferences (Style & Conventions)
 Project and user coding style:
 - "Prefer functional components over class components"
 - "Use early returns instead of nested conditionals"
@@ -81,7 +83,7 @@ This is a **deep research** initialization. Take your time and be thorough (~50+
 
 ### Git-based
 - \`git log --oneline -20\` - Recent history
-- \`git branch -a\` - Branching strategy  
+- \`git branch -a\` - Branching strategy
 - \`git log --format="%s" -50\` - Commit conventions
 - \`git shortlog -sn --all | head -10\` - Main contributors
 
@@ -218,10 +220,7 @@ async function confirm(rl: readline.Interface, question: string): Promise<boolea
 }
 
 function findOpencodeConfig(): string | null {
-  const candidates = [
-    join(OPENCODE_CONFIG_DIR, "opencode.jsonc"),
-    join(OPENCODE_CONFIG_DIR, "opencode.json"),
-  ];
+  const candidates = [join(OPENCODE_CONFIG_DIR, "opencode.jsonc"), join(OPENCODE_CONFIG_DIR, "opencode.json")];
 
   for (const path of candidates) {
     if (existsSync(path)) {
@@ -235,7 +234,7 @@ function findOpencodeConfig(): string | null {
 function addPluginToConfig(configPath: string): boolean {
   try {
     const content = readFileSync(configPath, "utf-8");
-    
+
     if (content.includes("opencode-supermemory")) {
       console.log("✓ Plugin already registered in config");
       return true;
@@ -243,7 +242,7 @@ function addPluginToConfig(configPath: string): boolean {
 
     const jsonContent = stripJsoncComments(content);
     let config: Record<string, unknown>;
-    
+
     try {
       config = JSON.parse(jsonContent);
     } catch {
@@ -257,22 +256,16 @@ function addPluginToConfig(configPath: string): boolean {
 
     if (configPath.endsWith(".jsonc")) {
       if (content.includes('"plugin"')) {
-        const newContent = content.replace(
-          /("plugin"\s*:\s*\[)([^\]]*?)(\])/,
-          (_match, start, middle, end) => {
-            const trimmed = middle.trim();
-            if (trimmed === "") {
-              return `${start}\n    "${PLUGIN_NAME}"\n  ${end}`;
-            }
-            return `${start}${middle.trimEnd()},\n    "${PLUGIN_NAME}"\n  ${end}`;
+        const newContent = content.replace(/("plugin"\s*:\s*\[)([^\]]*?)(\])/, (_match, start, middle, end) => {
+          const trimmed = middle.trim();
+          if (trimmed === "") {
+            return `${start}\n    "${PLUGIN_NAME}"\n  ${end}`;
           }
-        );
+          return `${start}${middle.trimEnd()},\n    "${PLUGIN_NAME}"\n  ${end}`;
+        });
         writeFileSync(configPath, newContent);
       } else {
-        const newContent = content.replace(
-          /^(\s*\{)/,
-          `$1\n  "plugin": ["${PLUGIN_NAME}"],`
-        );
+        const newContent = content.replace(/^(\s*\{)/, `$1\n  "plugin": ["${PLUGIN_NAME}"],`);
         writeFileSync(configPath, newContent);
       }
     } else {
@@ -290,12 +283,12 @@ function addPluginToConfig(configPath: string): boolean {
 function createNewConfig(): boolean {
   const configPath = join(OPENCODE_CONFIG_DIR, "opencode.jsonc");
   mkdirSync(OPENCODE_CONFIG_DIR, { recursive: true });
-  
+
   const config = `{
   "plugin": ["${PLUGIN_NAME}"]
 }
 `;
-  
+
   writeFileSync(configPath, config);
   console.log(`✓ Created ${configPath}`);
   return true;
@@ -322,7 +315,7 @@ function createCommands(): boolean {
 function isOhMyOpencodeInstalled(): boolean {
   const configPath = findOpencodeConfig();
   if (!configPath) return false;
-  
+
   try {
     const content = readFileSync(configPath, "utf-8");
     return content.includes("oh-my-opencode");
@@ -333,7 +326,7 @@ function isOhMyOpencodeInstalled(): boolean {
 
 function isAutoCompactAlreadyDisabled(): boolean {
   if (!existsSync(OH_MY_OPENCODE_CONFIG)) return false;
-  
+
   try {
     const content = readFileSync(OH_MY_OPENCODE_CONFIG, "utf-8");
     const config = JSON.parse(content);
@@ -347,18 +340,18 @@ function isAutoCompactAlreadyDisabled(): boolean {
 function disableAutoCompactHook(): boolean {
   try {
     let config: Record<string, unknown> = {};
-    
+
     if (existsSync(OH_MY_OPENCODE_CONFIG)) {
       const content = readFileSync(OH_MY_OPENCODE_CONFIG, "utf-8");
       config = JSON.parse(content);
     }
-    
+
     const disabledHooks = (config.disabled_hooks as string[]) || [];
     if (!disabledHooks.includes("anthropic-context-window-limit-recovery")) {
       disabledHooks.push("anthropic-context-window-limit-recovery");
     }
     config.disabled_hooks = disabledHooks;
-    
+
     writeFileSync(OH_MY_OPENCODE_CONFIG, JSON.stringify(config, null, 2));
     console.log(`✓ Disabled anthropic-context-window-limit-recovery hook in oh-my-opencode.json`);
     return true;
@@ -381,10 +374,10 @@ async function install(options: InstallOptions): Promise<number> {
   // Step 1: Register plugin in config
   console.log("Step 1: Register plugin in OpenCode config");
   const configPath = findOpencodeConfig();
-  
+
   if (configPath) {
     if (options.tui) {
-      const shouldModify = await confirm(rl!, `Add plugin to ${configPath}?`);
+      const shouldModify = await confirm(rl as Interface, `Add plugin to ${configPath}?`);
       if (!shouldModify) {
         console.log("Skipped.");
       } else {
@@ -395,7 +388,7 @@ async function install(options: InstallOptions): Promise<number> {
     }
   } else {
     if (options.tui) {
-      const shouldCreate = await confirm(rl!, "No OpenCode config found. Create one?");
+      const shouldCreate = await confirm(rl as Interface, "No OpenCode config found. Create one?");
       if (!shouldCreate) {
         console.log("Skipped.");
       } else {
@@ -409,7 +402,7 @@ async function install(options: InstallOptions): Promise<number> {
   // Step 2: Create commands
   console.log("\nStep 2: Create /supermemory-init, /supermemory-login, and /supermemory-logout commands");
   if (options.tui) {
-    const shouldCreate = await confirm(rl!, "Add supermemory commands?");
+    const shouldCreate = await confirm(rl as Interface, "Add supermemory commands?");
     if (!shouldCreate) {
       console.log("Skipped.");
     } else {
@@ -424,12 +417,15 @@ async function install(options: InstallOptions): Promise<number> {
     console.log("\nStep 3: Configure Oh My OpenCode");
     console.log("Detected Oh My OpenCode plugin.");
     console.log("Supermemory handles context compaction, so the built-in context-window-limit-recovery hook should be disabled.");
-    
+
     if (isAutoCompactAlreadyDisabled()) {
       console.log("✓ anthropic-context-window-limit-recovery hook already disabled");
     } else {
       if (options.tui) {
-        const shouldDisable = await confirm(rl!, "Disable anthropic-context-window-limit-recovery hook to let Supermemory handle context?");
+        const shouldDisable = await confirm(
+          rl as Interface,
+          "Disable anthropic-context-window-limit-recovery hook to let Supermemory handle context?",
+        );
         if (!shouldDisable) {
           console.log("Skipped.");
         } else {
@@ -446,7 +442,7 @@ async function install(options: InstallOptions): Promise<number> {
   if (rl) rl.close();
 
   // Step 4: Authenticate
-  console.log("\n" + "─".repeat(50));
+  console.log(`\n${"─".repeat(50)}`);
   console.log("\n🔑 Final step: Authenticate with Supermemory\n");
 
   if (options.tui) {
@@ -458,7 +454,7 @@ async function install(options: InstallOptions): Promise<number> {
   console.log("  bunx opencode-supermemory@latest login");
   console.log("\nOr set your API key manually:");
   console.log('  export SUPERMEMORY_API_KEY="sm_..."');
-  console.log("\n" + "─".repeat(50));
+  console.log(`\n${"─".repeat(50)}`);
   console.log("\n✓ Setup complete! Restart OpenCode to activate.\n");
   return 0;
 }

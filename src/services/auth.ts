@@ -1,8 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { exec } from "node:child_process";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 const CREDENTIALS_DIR = join(homedir(), ".supermemory-opencode");
 const CREDENTIALS_FILE = join(CREDENTIALS_DIR, "credentials.json");

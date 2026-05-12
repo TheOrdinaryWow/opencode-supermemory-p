@@ -1,4 +1,5 @@
 import type { ProfileResponse } from "supermemory/resources";
+
 import { CONFIG } from "../config.js";
 
 interface MemoryResultMinimal {
@@ -24,7 +25,7 @@ function extractFactText(fact: unknown): string {
 export function formatContextForPrompt(
   profile: ProfileResponse | null,
   userMemories: MemoriesResponseMinimal,
-  projectMemories: MemoriesResponseMinimal
+  projectMemories: MemoriesResponseMinimal,
 ): string {
   const parts: string[] = ["[SUPERMEMORY]"];
 

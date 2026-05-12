@@ -1,14 +1,15 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
+
+import { CONFIG } from "../config.js";
 import { supermemoryClient } from "./client.js";
 import { log } from "./logger.js";
-import { CONFIG } from "../config.js";
 
 const MESSAGE_STORAGE = join(homedir(), ".opencode", "messages");
 const PART_STORAGE = join(homedir(), ".opencode", "parts");
 
-const DEFAULT_THRESHOLD = 0.80;
+const DEFAULT_THRESHOLD = 0.8;
 const MIN_TOKENS_FOR_COMPACTION = 50_000;
 const COMPACTION_COOLDOWN_MS = 30_000;
 const DEFAULT_CONTEXT_LIMIT = 200_000;
@@ -56,13 +57,14 @@ export interface CompactionOptions {
 }
 
 function createCompactionPrompt(projectMemories: string[]): string {
-  const memoriesSection = projectMemories.length > 0 
-    ? `
+  const memoriesSection =
+    projectMemories.length > 0
+      ? `
 ## Project Knowledge (from Supermemory)
 The following project-specific knowledge should be preserved and referenced in the summary:
-${projectMemories.map(m => `- ${m}`).join('\n')}
+${projectMemories.map((m) => `- ${m}`).join("\n")}
 `
-    : '';
+      : "";
 
   return `[COMPACTION CONTEXT INJECTION]
 
@@ -142,9 +144,7 @@ function findNearestMessageWithFields(messageDir: string): StoredMessage | null 
         if (msg.agent && msg.model?.providerID && msg.model?.modelID) {
           return msg;
         }
-      } catch {
-        continue;
-      }
+      } catch {}
     }
   } catch {
     return null;
@@ -171,7 +171,7 @@ function injectHookMessage(
     agent?: string;
     model?: { providerID?: string; modelID?: string };
     path?: { cwd?: string; root?: string };
-  }
+  },
 ): boolean {
   if (!hookContent || hookContent.trim().length === 0) {
     log("[compaction] attempted to inject empty content, skipping");
@@ -200,9 +200,7 @@ function injectHookMessage(
     time: { created: now },
     agent: resolvedAgent,
     model: resolvedModel,
-    path: originalMessage.path?.cwd
-      ? { cwd: originalMessage.path.cwd, root: originalMessage.path.root ?? "/" }
-      : undefined,
+    path: originalMessage.path?.cwd ? { cwd: originalMessage.path.cwd, root: originalMessage.path.root ?? "/" } : undefined,
   };
 
   const textPart = {
@@ -236,9 +234,17 @@ export interface CompactionContext {
   directory: string;
   client: {
     session: {
-      summarize: (params: { path: { id: string }; body: { providerID: string; modelID: string }; query: { directory: string } }) => Promise<unknown>;
+      summarize: (params: {
+        path: { id: string };
+        body: { providerID: string; modelID: string };
+        query: { directory: string };
+      }) => Promise<unknown>;
       messages: (params: { path: { id: string }; query: { directory: string } }) => Promise<{ data?: Array<{ info: MessageInfo }> }>;
-      promptAsync: (params: { path: { id: string }; body: { agent?: string; parts: Array<{ type: string; text: string }> }; query: { directory: string } }) => Promise<unknown>;
+      promptAsync: (params: {
+        path: { id: string };
+        body: { agent?: string; parts: Array<{ type: string; text: string }> };
+        query: { directory: string };
+      }) => Promise<unknown>;
     };
     tui: {
       showToast: (params: { body: { title: string; message: string; variant: string; duration: number } }) => Promise<unknown>;
@@ -246,11 +252,7 @@ export interface CompactionContext {
   };
 }
 
-export function createCompactionHook(
-  ctx: CompactionContext,
-  tags: { user: string; project: string },
-  options?: CompactionOptions
-) {
+export function createCompactionHook(ctx: CompactionContext, tags: { user: string; project: string }, options?: CompactionOptions) {
   const state: CompactionState = {
     lastCompactionTime: new Map(),
     compactionInProgress: new Set(),
@@ -264,7 +266,7 @@ export function createCompactionHook(
     try {
       const result = await supermemoryClient.listMemories(tags.project, CONFIG.maxProjectMemories);
       const memories = result.memories || [];
-      return memories.map((m: any) => m.summary || m.content || "").filter(Boolean);
+      return memories.map((m) => m.summary || m.content || "").filter(Boolean);
     } catch (err) {
       log("[compaction] failed to fetch project memories", { error: String(err) });
       return [];
@@ -284,9 +286,9 @@ export function createCompactionHook(
     });
 
     if (success) {
-      log("[compaction] context injected with project memories", { 
+      log("[compaction] context injected with project memories", {
         sessionID: summarizeCtx.sessionID,
-        memoriesCount: projectMemories.length 
+        memoriesCount: projectMemories.length,
       });
     }
   }
@@ -298,11 +300,7 @@ export function createCompactionHook(
     }
 
     try {
-      const result = await supermemoryClient.addMemory(
-        `[Session Summary]\n${summaryContent}`,
-        tags.project,
-        { type: "conversation" }
-      );
+      const result = await supermemoryClient.addMemory(`[Session Summary]\n${summaryContent}`, tags.project, { type: "conversation" });
 
       if (result.success) {
         log("[compaction] summary saved as memory", { sessionID, memoryId: result.id });
@@ -332,7 +330,7 @@ export function createCompactionHook(
     // Fallback: find model/agent from stored messages if not available
     const messageDir = getMessageDir(sessionID);
     const storedMessage = messageDir ? findNearestMessageWithFields(messageDir) : null;
-    
+
     if (!providerID || !modelID) {
       if (storedMessage?.model?.providerID) providerID = storedMessage.model.providerID;
       if (storedMessage?.model?.modelID) modelID = storedMessage.model.modelID;
@@ -365,14 +363,16 @@ export function createCompactionHook(
       return;
     }
 
-    await ctx.client.tui.showToast({
-      body: {
-        title: "Preemptive Compaction",
-        message: `Context at ${(usageRatio * 100).toFixed(0)}% - compacting with Supermemory context...`,
-        variant: "warning",
-        duration: 3000,
-      },
-    }).catch(() => {});
+    await ctx.client.tui
+      .showToast({
+        body: {
+          title: "Preemptive Compaction",
+          message: `Context at ${(usageRatio * 100).toFixed(0)}% - compacting with Supermemory context...`,
+          variant: "warning",
+          duration: 3000,
+        },
+      })
+      .catch(() => {});
 
     log("[compaction] triggering compaction", { sessionID, usageRatio });
 
@@ -394,14 +394,16 @@ export function createCompactionHook(
         query: { directory: ctx.directory },
       });
 
-      await ctx.client.tui.showToast({
-        body: {
-          title: "Compaction Complete",
-          message: "Session compacted with Supermemory context. Resuming...",
-          variant: "success",
-          duration: 2000,
-        },
-      }).catch(() => {});
+      await ctx.client.tui
+        .showToast({
+          body: {
+            title: "Compaction Complete",
+            message: "Session compacted with Supermemory context. Resuming...",
+            variant: "success",
+            duration: 2000,
+          },
+        })
+        .catch(() => {});
 
       state.compactionInProgress.delete(sessionID);
 
@@ -428,7 +430,7 @@ export function createCompactionHook(
 
   async function handleSummaryMessage(sessionID: string, _messageInfo: MessageInfo): Promise<void> {
     log("[compaction] handleSummaryMessage called", { sessionID, inSet: state.summarizedSessions.has(sessionID) });
-    
+
     if (!state.summarizedSessions.has(sessionID)) return;
 
     state.summarizedSessions.delete(sessionID);
@@ -441,28 +443,25 @@ export function createCompactionHook(
       });
 
       const messages = (resp.data ?? resp) as Array<{ info: MessageInfo; parts?: Array<{ type: string; text?: string }> }>;
-      
-      const summaryMessage = messages.find(m => 
-        m.info.role === "assistant" && 
-        m.info.summary === true
-      );
 
-      log("[compaction] looking for summary message", { 
-        sessionID, 
+      const summaryMessage = messages.find((m) => m.info.role === "assistant" && m.info.summary === true);
+
+      log("[compaction] looking for summary message", {
+        sessionID,
         found: !!summaryMessage,
-        hasParts: !!summaryMessage?.parts
+        hasParts: !!summaryMessage?.parts,
       });
 
       if (summaryMessage?.parts) {
-        const textParts = summaryMessage.parts.filter(p => p.type === "text" && p.text);
-        const summaryContent = textParts.map(p => p.text).join("\n");
-        
-        log("[compaction] summary content", { 
-          sessionID, 
+        const textParts = summaryMessage.parts.filter((p) => p.type === "text" && p.text);
+        const summaryContent = textParts.map((p) => p.text).join("\n");
+
+        log("[compaction] summary content", {
+          sessionID,
           textPartsCount: textParts.length,
-          contentLength: summaryContent.length 
+          contentLength: summaryContent.length,
         });
-        
+
         if (summaryContent) {
           await saveSummaryAsMemory(sessionID, summaryContent);
         }
@@ -515,13 +514,11 @@ export function createCompactionHook(
           });
 
           const messages = (resp.data ?? resp) as Array<{ info: MessageInfo }>;
-          const assistants = messages
-            .filter((m) => m.info.role === "assistant")
-            .map((m) => m.info);
+          const assistants = messages.filter((m) => m.info.role === "assistant").map((m) => m.info);
 
           if (assistants.length === 0) return;
 
-          const lastAssistant = assistants[assistants.length - 1]!;
+          const lastAssistant = assistants[assistants.length - 1];
 
           if (!lastAssistant.providerID || !lastAssistant.modelID) {
             const messageDir = getMessageDir(sessionID);
