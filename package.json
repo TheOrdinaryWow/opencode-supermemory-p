@@ -32,7 +32,8 @@
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.162",
-    "supermemory": "^4.0.0"
+    "supermemory": "^4.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",

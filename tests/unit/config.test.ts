@@ -376,3 +376,135 @@ describe("keywordPatterns — DEFAULT_KEYWORD_PATTERNS always present, invalid r
     expect(res.CONFIG.keywordPatterns[15]).toBe("always\\s+remember");
   });
 });
+
+// =====================================================================
+// Zod schema — exercised in-process (the new src/config/* modules are pure
+// and have no top-level side effects, so we can import and call directly).
+// =====================================================================
+
+describe("SupermemoryConfigSchema — in-process zod validation", () => {
+  it("parse({}) returns every default field — apiKey/userContainerTag/projectContainerTag stay undefined", async () => {
+    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    const result = SupermemoryConfigSchema.parse({});
+    expect(result.apiKey).toBeUndefined();
+    expect(result.userContainerTag).toBeUndefined();
+    expect(result.projectContainerTag).toBeUndefined();
+    expect(result.similarityThreshold).toBe(0.6);
+    expect(result.maxMemories).toBe(5);
+    expect(result.maxProjectMemories).toBe(10);
+    expect(result.maxProfileItems).toBe(5);
+    expect(result.injectProfile).toBe(true);
+    expect(result.containerTagPrefix).toBe("opencode");
+    expect(result.compactionThreshold).toBe(0.8);
+    expect(result.keywordPatterns).toEqual([]);
+  });
+
+  it("per-field .catch() recovers silently from wrong-type input", async () => {
+    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    // Every field gets a string where its declared type expects something else.
+    const result = SupermemoryConfigSchema.parse({
+      similarityThreshold: "not-a-number",
+      maxMemories: "five",
+      maxProjectMemories: false,
+      maxProfileItems: null,
+      injectProfile: "yes",
+      containerTagPrefix: 42,
+      filterPrompt: 123,
+      keywordPatterns: "not-an-array",
+      compactionThreshold: { nested: true },
+    });
+    expect(result.similarityThreshold).toBe(0.6);
+    expect(result.maxMemories).toBe(5);
+    expect(result.maxProjectMemories).toBe(10);
+    expect(result.maxProfileItems).toBe(5);
+    expect(result.injectProfile).toBe(true);
+    expect(result.containerTagPrefix).toBe("opencode");
+    expect(result.filterPrompt).toContain("You are a stateful coding agent");
+    expect(result.keywordPatterns).toEqual([]);
+    expect(result.compactionThreshold).toBe(0.8);
+  });
+
+  it("compactionThreshold range gate: (0, 1] — boundary 1 accepted, 0 rejected, > 1 rejected", async () => {
+    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: 1 }).compactionThreshold).toBe(1);
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: 0.5 }).compactionThreshold).toBe(0.5);
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: 0 }).compactionThreshold).toBe(0.8);
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: -0.1 }).compactionThreshold).toBe(0.8);
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: 1.5 }).compactionThreshold).toBe(0.8);
+    expect(SupermemoryConfigSchema.parse({ compactionThreshold: NaN }).compactionThreshold).toBe(0.8);
+  });
+});
+
+describe("loadConfig / getConfig — lazy in-process API", () => {
+  it("loadConfig({ homeDir, env }) returns DEFAULTS when no config file or env apiKey is present", async () => {
+    const { loadConfig } = await import("../../src/config/loader.ts");
+    const tmpHome = createTmpDir("loader-defaults");
+    try {
+      const result = loadConfig({ homeDir: tmpHome, env: {} });
+      expect(result.apiKey).toBeUndefined();
+      expect(result.similarityThreshold).toBe(0.6);
+      expect(result.maxMemories).toBe(5);
+      // DEFAULT_KEYWORD_PATTERNS is always merged in.
+      expect(result.keywordPatterns).toHaveLength(16);
+      expect(result.keywordPatterns[0]).toBe("remember");
+    } finally {
+      cleanupTmpDir(tmpHome);
+    }
+  });
+
+  it("loadConfig({ env: { SUPERMEMORY_API_KEY } }) honours env even when no file is present", async () => {
+    const { loadConfig } = await import("../../src/config/loader.ts");
+    const tmpHome = createTmpDir("loader-env");
+    try {
+      const result = loadConfig({ homeDir: tmpHome, env: { SUPERMEMORY_API_KEY: "sm_from_env_inproc" } });
+      expect(result.apiKey).toBe("sm_from_env_inproc");
+    } finally {
+      cleanupTmpDir(tmpHome);
+    }
+  });
+
+  it("loadConfig reads ~/.config/opencode/supermemory.jsonc when present", async () => {
+    const { loadConfig } = await import("../../src/config/loader.ts");
+    const tmpHome = createTmpDir("loader-jsonc");
+    try {
+      mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
+      writeFileSync(
+        join(tmpHome, ".config", "opencode", "supermemory.jsonc"),
+        '{"apiKey":"sm_from_file_inproc","similarityThreshold":0.91,"compactionThreshold":0.42}',
+      );
+      const result = loadConfig({ homeDir: tmpHome, env: {} });
+      expect(result.apiKey).toBe("sm_from_file_inproc");
+      expect(result.similarityThreshold).toBe(0.91);
+      expect(result.compactionThreshold).toBe(0.42);
+    } finally {
+      cleanupTmpDir(tmpHome);
+    }
+  });
+
+  it("loadConfig silently drops invalid keywordPatterns regex strings while keeping defaults", async () => {
+    const { loadConfig } = await import("../../src/config/loader.ts");
+    const tmpHome = createTmpDir("loader-regex");
+    try {
+      mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
+      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory.jsonc"), '{"keywordPatterns":["valid_one","[unclosed","valid_two"]}');
+      const result = loadConfig({ homeDir: tmpHome, env: {} });
+      expect(result.keywordPatterns).toContain("remember"); // default survives
+      expect(result.keywordPatterns).toContain("valid_one");
+      expect(result.keywordPatterns).toContain("valid_two");
+      expect(result.keywordPatterns).not.toContain("[unclosed");
+    } finally {
+      cleanupTmpDir(tmpHome);
+    }
+  });
+
+  it("getConfig caches the first call; resetConfigCache forces a re-load", async () => {
+    const { getConfig, resetConfigCache } = await import("../../src/config/loader.ts");
+    const a = getConfig();
+    const b = getConfig();
+    expect(a).toBe(b); // identity equality — cached singleton
+    resetConfigCache();
+    const c = getConfig();
+    expect(c).not.toBe(a); // fresh object after reset
+    expect(c).toEqual(a); // ...but structurally identical (same env/files)
+  });
+});

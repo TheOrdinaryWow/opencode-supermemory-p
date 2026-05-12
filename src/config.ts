@@ -1,116 +1,47 @@
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+/**
+ * Backwards-compatibility shim for the original `src/config.ts` module.
+ *
+ * The real implementation now lives under `src/config/` (defaults, schema,
+ * loader). This file:
+ *   1. Re-exports the new lazy API (`loadConfig`, `getConfig`,
+ *      `resetConfigCache`, `SupermemoryConfigSchema`, types, defaults).
+ *   2. Provides eager `SUPERMEMORY_API_KEY` / `CONFIG` constants and the
+ *      `isConfigured()` predicate so existing import sites
+ *      (`src/index.ts`, `src/services/client.ts`, `src/services/context.ts`,
+ *      `src/services/tags.ts`, `src/services/compaction.ts`) keep working
+ *      without modification.
+ *
+ * Migration plan: once every consumer is moved to call `getConfig()` lazily,
+ * this file (and the eager constants below) can be deleted.
+ */
 
-import { loadCredentials } from "./services/auth.js";
-import { stripJsoncComments } from "./services/jsonc.js";
+import { getConfig } from "./config/loader.js";
 
-const CONFIG_DIR = join(homedir(), ".config", "opencode");
-const CONFIG_FILES = [join(CONFIG_DIR, "supermemory.jsonc"), join(CONFIG_DIR, "supermemory.json")];
+export { DEFAULT_KEYWORD_PATTERNS, DEFAULTS } from "./config/defaults.js";
+export {
+  getConfig,
+  type LoadConfigOptions,
+  loadConfig,
+  resetConfigCache,
+} from "./config/loader.js";
+export {
+  type SupermemoryConfig,
+  SupermemoryConfigSchema,
+} from "./config/schema.js";
 
-interface SupermemoryConfig {
-  apiKey?: string;
-  similarityThreshold?: number;
-  maxMemories?: number;
-  maxProjectMemories?: number;
-  maxProfileItems?: number;
-  injectProfile?: boolean;
-  containerTagPrefix?: string;
-  userContainerTag?: string;
-  projectContainerTag?: string;
-  filterPrompt?: string;
-  keywordPatterns?: string[];
-  compactionThreshold?: number;
-}
+const initialConfig = getConfig();
 
-const DEFAULT_KEYWORD_PATTERNS = [
-  "remember",
-  "memorize",
-  "save\\s+this",
-  "note\\s+this",
-  "keep\\s+in\\s+mind",
-  "don'?t\\s+forget",
-  "learn\\s+this",
-  "store\\s+this",
-  "record\\s+this",
-  "make\\s+a\\s+note",
-  "take\\s+note",
-  "jot\\s+down",
-  "commit\\s+to\\s+memory",
-  "remember\\s+that",
-  "never\\s+forget",
-  "always\\s+remember",
-];
+/**
+ * Resolved API key from env / config file / OAuth credentials, captured at
+ * module load time. New code should prefer `getConfig().apiKey`.
+ */
+export const SUPERMEMORY_API_KEY: string | undefined = initialConfig.apiKey;
 
-const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey" | "userContainerTag" | "projectContainerTag">> = {
-  similarityThreshold: 0.6,
-  maxMemories: 5,
-  maxProjectMemories: 10,
-  maxProfileItems: 5,
-  injectProfile: true,
-  containerTagPrefix: "opencode",
-  filterPrompt:
-    "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
-  keywordPatterns: [],
-  compactionThreshold: 0.8,
-};
-
-function isValidRegex(pattern: string): boolean {
-  try {
-    new RegExp(pattern);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function validateCompactionThreshold(value: number | undefined): number {
-  if (value === undefined || typeof value !== "number" || Number.isNaN(value)) {
-    return DEFAULTS.compactionThreshold;
-  }
-  if (value <= 0 || value > 1) return DEFAULTS.compactionThreshold;
-  return value;
-}
-
-function loadConfig(): SupermemoryConfig {
-  for (const path of CONFIG_FILES) {
-    if (existsSync(path)) {
-      try {
-        const content = readFileSync(path, "utf-8");
-        const json = stripJsoncComments(content);
-        return JSON.parse(json) as SupermemoryConfig;
-      } catch {
-        // Invalid config, use defaults
-      }
-    }
-  }
-  return {};
-}
-
-const fileConfig = loadConfig();
-
-function getApiKey(): string | undefined {
-  // Priority: env var > config file > OAuth credentials
-  if (process.env.SUPERMEMORY_API_KEY) return process.env.SUPERMEMORY_API_KEY;
-  if (fileConfig.apiKey) return fileConfig.apiKey;
-  return loadCredentials()?.apiKey;
-}
-
-export const SUPERMEMORY_API_KEY = getApiKey();
-
-export const CONFIG = {
-  similarityThreshold: fileConfig.similarityThreshold ?? DEFAULTS.similarityThreshold,
-  maxMemories: fileConfig.maxMemories ?? DEFAULTS.maxMemories,
-  maxProjectMemories: fileConfig.maxProjectMemories ?? DEFAULTS.maxProjectMemories,
-  maxProfileItems: fileConfig.maxProfileItems ?? DEFAULTS.maxProfileItems,
-  injectProfile: fileConfig.injectProfile ?? DEFAULTS.injectProfile,
-  containerTagPrefix: fileConfig.containerTagPrefix ?? DEFAULTS.containerTagPrefix,
-  userContainerTag: fileConfig.userContainerTag,
-  projectContainerTag: fileConfig.projectContainerTag,
-  filterPrompt: fileConfig.filterPrompt ?? DEFAULTS.filterPrompt,
-  keywordPatterns: [...DEFAULT_KEYWORD_PATTERNS, ...(fileConfig.keywordPatterns ?? []).filter(isValidRegex)],
-  compactionThreshold: validateCompactionThreshold(fileConfig.compactionThreshold),
-};
+/**
+ * Resolved config snapshot, captured at module load time. New code should
+ * prefer `getConfig()` so that test resets via `resetConfigCache()` propagate.
+ */
+export const CONFIG = initialConfig;
 
 export function isConfigured(): boolean {
   return !!SUPERMEMORY_API_KEY;
