@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { createCompactionHook, type CompactionContext } from "../../src/compaction/index.ts";
+import { type CompactionContext, createCompactionHook } from "../../src/compaction/index.ts";
 
 function createCtx(): CompactionContext {
   return {

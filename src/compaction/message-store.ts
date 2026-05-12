@@ -58,11 +58,7 @@ export interface InjectOriginalMessage {
  * Agent + model resolve from the live event first, then a nearest-stored-message fallback. Returns false on empty
  * content or write failure. The on-disk format is OpenCode's contract — do not change without coordinating upstream.
  */
-export function injectHookMessage(
-  sessionID: string,
-  hookContent: string,
-  originalMessage: InjectOriginalMessage,
-): boolean {
+export function injectHookMessage(sessionID: string, hookContent: string, originalMessage: InjectOriginalMessage): boolean {
   if (!hookContent || hookContent.trim().length === 0) {
     log("[compaction] attempted to inject empty content, skipping");
     return false;
@@ -90,9 +86,7 @@ export function injectHookMessage(
     time: { created: now },
     agent: resolvedAgent,
     model: resolvedModel,
-    path: originalMessage.path?.cwd
-      ? { cwd: originalMessage.path.cwd, root: originalMessage.path.root ?? "/" }
-      : undefined,
+    path: originalMessage.path?.cwd ? { cwd: originalMessage.path.cwd, root: originalMessage.path.root ?? "/" } : undefined,
   };
 
   const textPart = {

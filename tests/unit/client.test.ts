@@ -1,7 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import type { AppError } from "../../src/shared/errors.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import type { AppError } from "../../src/shared/errors.js";
 
 // =====================================================================
 // Background — what we are pinning

@@ -3,7 +3,6 @@ import { tool } from "@opencode-ai/plugin";
 import { isConfigured } from "../config.js";
 import type { supermemoryClient } from "../memory/client.js";
 import type { MemoryScope, MemoryType } from "../types/index.js";
-
 import { executeAdd } from "./add.js";
 import { executeForget } from "./forget.js";
 import { executeList } from "./list.js";

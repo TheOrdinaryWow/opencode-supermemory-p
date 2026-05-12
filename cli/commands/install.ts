@@ -1,5 +1,6 @@
-import { defineCommand } from "citty";
 import type { Interface } from "node:readline";
+
+import { defineCommand } from "citty";
 
 import { createCommandFiles } from "../command-files.js";
 import { disableAutoCompactHook, isAutoCompactAlreadyDisabled, isOhMyOpencodeInstalled } from "../oh-my-opencode.js";
@@ -30,7 +31,8 @@ async function runInstall(tui: boolean, disableAutoCompact: boolean): Promise<nu
     console.log("Detected Oh My OpenCode plugin.");
     console.log("Supermemory handles context compaction, so the built-in context-window-limit-recovery hook should be disabled.");
     if (isAutoCompactAlreadyDisabled()) console.log("✓ anthropic-context-window-limit-recovery hook already disabled");
-    else if (rl) await maybe(rl, "Disable anthropic-context-window-limit-recovery hook to let Supermemory handle context?", disableAutoCompactHook);
+    else if (rl)
+      await maybe(rl, "Disable anthropic-context-window-limit-recovery hook to let Supermemory handle context?", disableAutoCompactHook);
     else if (disableAutoCompact) disableAutoCompactHook();
     else console.log("Skipped. Use --disable-context-recovery to disable the hook in non-interactive mode.");
   }

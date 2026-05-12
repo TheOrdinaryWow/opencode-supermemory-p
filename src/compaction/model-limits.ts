@@ -1,6 +1,9 @@
 import type { PluginInput } from "@opencode-ai/plugin";
 
-export function createModelLimitLookup(ctx: PluginInput, log: (message: string, data?: unknown) => void): (providerID: string, modelID: string) => number | undefined {
+export function createModelLimitLookup(
+  ctx: PluginInput,
+  log: (message: string, data?: unknown) => void,
+): (providerID: string, modelID: string) => number | undefined {
   const modelLimits = new Map<string, number>();
   (async () => {
     try {

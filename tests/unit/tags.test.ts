@@ -49,8 +49,7 @@ mock.module("node:child_process", () => {
       // Narrow match: tags.ts calls execSync with NO options. The git-fixture
       // sanity test (tests/helpers/__sanity__.test.ts) calls the same command
       // with { cwd: repo } to probe a tmp repo — those calls must pass through.
-      const hasCwd =
-        typeof options === "object" && options !== null && "cwd" in (options as Record<string, unknown>);
+      const hasCwd = typeof options === "object" && options !== null && "cwd" in (options as Record<string, unknown>);
       if (command === "git config user.email" && !hasCwd) {
         gitEmailCallCount++;
         if (gitEmailResponder === null) {

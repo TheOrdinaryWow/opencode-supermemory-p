@@ -38,12 +38,7 @@ export interface ShouldCompactInput {
   now: number;
 }
 
-export type SkipReason =
-  | "in-progress"
-  | "cooldown"
-  | "is-summary"
-  | "below-min-tokens"
-  | "below-threshold";
+export type SkipReason = "in-progress" | "cooldown" | "is-summary" | "below-min-tokens" | "below-threshold";
 
 export interface ShouldCompactResult {
   shouldCompact: boolean;

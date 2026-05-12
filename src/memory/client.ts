@@ -2,8 +2,8 @@ import Supermemory from "supermemory";
 
 import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
 import type { AppError } from "../shared/errors.js";
-import { err, ok, type Result } from "../shared/result.js";
 import { log } from "../shared/logger.js";
+import { err, ok, type Result } from "../shared/result.js";
 import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
 
 const TIMEOUT_MS = 30000;
@@ -211,7 +211,7 @@ export class SupermemoryClient {
     }
 
     if (savedIds.length === 0) {
-      const error = firstError ?? { kind: "NetworkError", message: "Failed to ingest conversation" } satisfies AppError;
+      const error = firstError ?? ({ kind: "NetworkError", message: "Failed to ingest conversation" } satisfies AppError);
       log("ingestConversation: error", { conversationId, error: error.message });
       return err(error);
     }

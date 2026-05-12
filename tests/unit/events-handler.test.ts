@@ -64,9 +64,7 @@ describe("handleEvent", () => {
       },
     };
 
-    await expect(handleEvent({ event: { type: "x" } }, { compactionHook: hook })).rejects.toThrow(
-      "compaction failed",
-    );
+    await expect(handleEvent({ event: { type: "x" } }, { compactionHook: hook })).rejects.toThrow("compaction failed");
   });
 
   it("handles events without properties", async () => {

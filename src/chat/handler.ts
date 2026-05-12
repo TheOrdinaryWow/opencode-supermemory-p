@@ -19,7 +19,6 @@ import type { ProfileResponse } from "supermemory/resources";
 import type { SupermemoryConfig } from "../config/schema.js";
 import { formatContextForPrompt } from "../memory/context.js";
 import type { SessionState } from "../session/state.js";
-
 import { detectMemoryKeyword } from "./keywords.js";
 import { MEMORY_NUDGE_MESSAGE } from "./nudge.js";
 
@@ -36,9 +35,7 @@ type SearchResult =
   | { success: true; results?: Array<{ similarity?: number; memory?: string; chunk?: string }> }
   | { success: false; error?: string };
 
-type ProfileResult =
-  | ({ success: true } & ProfileResponse)
-  | { success: false; error?: string };
+type ProfileResult = ({ success: true } & ProfileResponse) | { success: false; error?: string };
 
 type ListResult =
   | {
@@ -81,19 +78,13 @@ export interface ChatHandlerDeps {
  * All errors are swallowed and logged — the hook must never throw, or
  * OpenCode will surface the failure to the user.
  */
-export async function handleChatMessage(
-  input: ChatHandlerInput,
-  output: ChatHandlerOutput,
-  deps: ChatHandlerDeps,
-): Promise<void> {
+export async function handleChatMessage(input: ChatHandlerInput, output: ChatHandlerOutput, deps: ChatHandlerDeps): Promise<void> {
   if (!deps.isConfigured()) return;
 
   const start = Date.now();
 
   try {
-    const textParts = output.parts.filter(
-      (p): p is Part & { type: "text"; text: string } => p.type === "text",
-    );
+    const textParts = output.parts.filter((p): p is Part & { type: "text"; text: string } => p.type === "text");
 
     if (textParts.length === 0) {
       deps.log("chat.message: no text parts found");
@@ -139,9 +130,7 @@ export async function handleChatMessage(
 
       const profile = profileResult.success ? profileResult : null;
       const userMemories = userMemoriesResult.success ? userMemoriesResult : { results: [] };
-      const projectMemoriesList = projectMemoriesListResult.success
-        ? projectMemoriesListResult
-        : { memories: [] };
+      const projectMemoriesList = projectMemoriesListResult.success ? projectMemoriesListResult : { memories: [] };
 
       const projectMemories = {
         results: (projectMemoriesList.memories || []).map((m) => ({

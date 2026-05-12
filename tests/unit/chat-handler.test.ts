@@ -166,9 +166,7 @@ describe("handleChatMessage", () => {
     const output = emptyOutput([textPart("please remember that we use bun")]);
     await handleChatMessage({ sessionID: "ses_1" }, output, deps);
 
-    const nudge = output.parts.find(
-      (p) => p.type === "text" && "text" in p && p.text === MEMORY_NUDGE_MESSAGE,
-    );
+    const nudge = output.parts.find((p) => p.type === "text" && "text" in p && p.text === MEMORY_NUDGE_MESSAGE);
     expect(nudge).toBeDefined();
     expect(nudge && "synthetic" in nudge && nudge.synthetic).toBe(true);
   });

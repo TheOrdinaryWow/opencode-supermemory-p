@@ -4,8 +4,8 @@ import { defaultLogger as logger } from "../shared/logger.js";
 import { findNearestMessageWithFields } from "./finder.js";
 import { getMessageDir, injectHookMessage } from "./message-store.js";
 import { createCompactionPrompt } from "./prompt.js";
-import { createCompactionState, type CompactionState } from "./state.js";
-import { DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, computeShouldCompact, type TokenInfo } from "./threshold.js";
+import { type CompactionState, createCompactionState } from "./state.js";
+import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "./threshold.js";
 
 export interface MessageInfo {
   id: string;
@@ -36,9 +36,20 @@ export interface CompactionContext {
   directory: string;
   client: {
     session: {
-      summarize: (params: { path: { id: string }; body: { providerID: string; modelID: string }; query: { directory: string } }) => Promise<unknown>;
-      messages: (params: { path: { id: string }; query: { directory: string } }) => Promise<{ data?: Array<{ info: MessageInfo; parts?: Array<{ type: string; text?: string }> }> }>;
-      promptAsync: (params: { path: { id: string }; body: { agent?: string; parts: Array<{ type: string; text: string }> }; query: { directory: string } }) => Promise<unknown>;
+      summarize: (params: {
+        path: { id: string };
+        body: { providerID: string; modelID: string };
+        query: { directory: string };
+      }) => Promise<unknown>;
+      messages: (params: {
+        path: { id: string };
+        query: { directory: string };
+      }) => Promise<{ data?: Array<{ info: MessageInfo; parts?: Array<{ type: string; text?: string }> }> }>;
+      promptAsync: (params: {
+        path: { id: string };
+        body: { agent?: string; parts: Array<{ type: string; text: string }> };
+        query: { directory: string };
+      }) => Promise<unknown>;
     };
     tui: {
       showToast: (params: { body: { title: string; message: string; variant: string; duration: number } }) => Promise<unknown>;
@@ -130,7 +141,12 @@ export async function performCompaction(deps: HookDeps, sessionID: string, lastA
   const modelID = lastAssistant.modelID || storedMessage?.model?.modelID || "";
   const decision = shouldCompact(deps, sessionID, { ...lastAssistant, providerID, modelID });
   if (!decision?.shouldCompact) return;
-  logger.info("[compaction] checking", { sessionID, totalUsed: decision.totalUsed, usageRatio: decision.usageRatio.toFixed(2), threshold: deps.threshold });
+  logger.info("[compaction] checking", {
+    sessionID,
+    totalUsed: decision.totalUsed,
+    usageRatio: decision.usageRatio.toFixed(2),
+    threshold: deps.threshold,
+  });
   deps.state.compactionInProgress.add(sessionID);
   deps.state.lastCompactionTime.set(sessionID, Date.now());
   if (!providerID || !modelID) {
@@ -140,9 +156,20 @@ export async function performCompaction(deps: HookDeps, sessionID: string, lastA
   await warnToast(deps, decision.usageRatio);
   logger.info("[compaction] triggering compaction", { sessionID, usageRatio: decision.usageRatio });
   try {
-    await injectMemoryContext(deps, { sessionID, providerID, modelID, usageRatio: decision.usageRatio, directory: deps.ctx.directory, agent: storedMessage?.agent });
+    await injectMemoryContext(deps, {
+      sessionID,
+      providerID,
+      modelID,
+      usageRatio: decision.usageRatio,
+      directory: deps.ctx.directory,
+      agent: storedMessage?.agent,
+    });
     deps.state.summarizedSessions.add(sessionID);
-    await deps.ctx.client.session.summarize({ path: { id: sessionID }, body: { providerID, modelID }, query: { directory: deps.ctx.directory } });
+    await deps.ctx.client.session.summarize({
+      path: { id: sessionID },
+      body: { providerID, modelID },
+      query: { directory: deps.ctx.directory },
+    });
     await successToast(deps);
     deps.state.compactionInProgress.delete(sessionID);
     scheduleContinuePrompt(deps, sessionID);
@@ -161,7 +188,11 @@ export async function injectMemoryContext(deps: HookDeps, summarizeCtx: Summariz
     model: { providerID: summarizeCtx.providerID, modelID: summarizeCtx.modelID },
     path: { cwd: summarizeCtx.directory },
   });
-  if (success) logger.info("[compaction] context injected with project memories", { sessionID: summarizeCtx.sessionID, memoriesCount: projectMemories.length });
+  if (success)
+    logger.info("[compaction] context injected with project memories", {
+      sessionID: summarizeCtx.sessionID,
+      memoriesCount: projectMemories.length,
+    });
 }
 
 async function fetchProjectMemoriesForCompaction(projectTag: string): Promise<string[]> {
@@ -175,7 +206,8 @@ async function fetchProjectMemoriesForCompaction(projectTag: string): Promise<st
 }
 
 async function saveSummaryAsMemory(deps: HookDeps, sessionID: string, summaryContent: string): Promise<void> {
-  if (!summaryContent || summaryContent.length < 100) return logger.info("[compaction] summary too short to save", { sessionID, length: summaryContent.length });
+  if (!summaryContent || summaryContent.length < 100)
+    return logger.info("[compaction] summary too short to save", { sessionID, length: summaryContent.length });
   try {
     const result = await supermemoryClient.addMemory(`[Session Summary]\n${summaryContent}`, deps.tags.project, { type: "conversation" });
     if (result.success) logger.info("[compaction] summary saved as memory", { sessionID, memoryId: result.id });
@@ -215,7 +247,14 @@ function fillMissingModelFromStorage(sessionID: string, message: MessageInfo): v
 
 async function warnToast(deps: HookDeps, usageRatio: number): Promise<void> {
   try {
-    await deps.ctx.client.tui.showToast({ body: { title: "Preemptive Compaction", message: `Context at ${(usageRatio * 100).toFixed(0)}% - compacting with Supermemory context...`, variant: "warning", duration: 3000 } });
+    await deps.ctx.client.tui.showToast({
+      body: {
+        title: "Preemptive Compaction",
+        message: `Context at ${(usageRatio * 100).toFixed(0)}% - compacting with Supermemory context...`,
+        variant: "warning",
+        duration: 3000,
+      },
+    });
   } catch (err) {
     logger.warn("[compaction] failed to show warning toast", { error: String(err) });
   }
@@ -223,7 +262,14 @@ async function warnToast(deps: HookDeps, usageRatio: number): Promise<void> {
 
 async function successToast(deps: HookDeps): Promise<void> {
   try {
-    await deps.ctx.client.tui.showToast({ body: { title: "Compaction Complete", message: "Session compacted with Supermemory context. Resuming...", variant: "success", duration: 2000 } });
+    await deps.ctx.client.tui.showToast({
+      body: {
+        title: "Compaction Complete",
+        message: "Session compacted with Supermemory context. Resuming...",
+        variant: "success",
+        duration: 2000,
+      },
+    });
   } catch (err) {
     logger.warn("[compaction] failed to show success toast", { error: String(err) });
   }
@@ -233,7 +279,11 @@ function scheduleContinuePrompt(deps: HookDeps, sessionID: string): void {
   setTimeout(async () => {
     try {
       const storedMessage = resolveStoredMessage(sessionID);
-      await deps.ctx.client.session.promptAsync({ path: { id: sessionID }, body: { agent: storedMessage?.agent, parts: [{ type: "text", text: "Continue" }] }, query: { directory: deps.ctx.directory } });
+      await deps.ctx.client.session.promptAsync({
+        path: { id: sessionID },
+        body: { agent: storedMessage?.agent, parts: [{ type: "text", text: "Continue" }] },
+        query: { directory: deps.ctx.directory },
+      });
     } catch (err) {
       logger.warn("[compaction] failed to continue after compaction", { sessionID, error: String(err) });
     }
