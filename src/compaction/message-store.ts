@@ -1,10 +1,12 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import fsExtra from "fs-extra";
 
-import { ensureDir } from "../shared/fs-utils.js";
 import { defaultLogger } from "../shared/logger.js";
 import { findNearestMessageWithFields } from "./finder.js";
+
+const { ensureDirSync } = fsExtra;
 
 /** On-disk roots captured at module-load time so tests can override $HOME first. */
 export const MESSAGE_STORAGE = join(homedir(), ".opencode", "messages");
@@ -26,12 +28,12 @@ export function getMessageDir(sessionID: string): string | null {
 
 /** Resolves the message dir, creating it if missing. Reuses getMessageDir so the lookup logic stays single-source. */
 export function getOrCreateMessageDir(sessionID: string): string {
-  ensureDir(MESSAGE_STORAGE);
+  ensureDirSync(MESSAGE_STORAGE);
   const found = getMessageDir(sessionID);
   if (found) return found;
 
   const directPath = join(MESSAGE_STORAGE, sessionID);
-  ensureDir(directPath);
+  ensureDirSync(directPath);
   return directPath;
 }
 
@@ -102,7 +104,7 @@ export function injectHookMessage(sessionID: string, hookContent: string, origin
   try {
     writeFileSync(join(messageDir, `${messageID}.json`), JSON.stringify(messageMeta, null, 2));
     const partDir = join(PART_STORAGE, messageID);
-    ensureDir(partDir);
+    ensureDirSync(partDir);
     writeFileSync(join(partDir, `${partID}.json`), JSON.stringify(textPart, null, 2));
     defaultLogger.info("[compaction] hook message injected", { sessionID, messageID });
     return true;

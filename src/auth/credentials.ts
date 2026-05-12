@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import fsExtra from "fs-extra";
 
-import { ensureDir, writeJsonFile } from "../shared/fs-utils.js";
+const { ensureDirSync, outputJsonSync } = fsExtra;
 
 export const CREDENTIALS_DIR = join(homedir(), ".supermemory-opencode");
 export const CREDENTIALS_FILE = join(CREDENTIALS_DIR, "credentials.json");
@@ -23,12 +24,14 @@ export function loadCredentials(): Credentials | null {
 }
 
 export function saveCredentials(apiKey: string): void {
-  ensureDir(CREDENTIALS_DIR, 0o700);
+  ensureDirSync(CREDENTIALS_DIR);
+  chmodSync(CREDENTIALS_DIR, 0o700);
   const credentials: Credentials = {
     apiKey,
     createdAt: new Date().toISOString(),
   };
-  writeJsonFile(CREDENTIALS_FILE, credentials, { mode: 0o600 });
+  outputJsonSync(CREDENTIALS_FILE, credentials, { spaces: 2 });
+  chmodSync(CREDENTIALS_FILE, 0o600);
 }
 
 export function clearCredentials(): boolean {

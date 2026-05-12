@@ -1,9 +1,9 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { loadCredentials } from "../auth/credentials.js";
-import { readJsoncFile } from "../shared/fs-utils.js";
+import { parseJsonc } from "../shared/jsonc.js";
 import { DEFAULT_KEYWORD_PATTERNS } from "./defaults.js";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "./schema.js";
 
@@ -64,7 +64,7 @@ function readFileConfig(homeDir: string): Record<string, unknown> {
   for (const path of candidates) {
     if (!existsSync(path)) continue;
     try {
-      const parsed = readJsoncFile<unknown>(path);
+      const parsed = parseJsonc<unknown>(readFileSync(path, "utf-8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>;
       }
