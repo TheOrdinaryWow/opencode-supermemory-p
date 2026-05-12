@@ -11,7 +11,10 @@
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "biome check --write",
+    "format": "biome format --write",
+    "lint": "biome lint --write"
   },
   "keywords": [
     "opencode",
@@ -32,6 +35,7 @@
     "supermemory": "^4.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
     "@types/bun": "latest",
     "typescript": "^5.7.3"
   },
