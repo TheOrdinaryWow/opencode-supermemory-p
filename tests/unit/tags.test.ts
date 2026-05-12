@@ -46,7 +46,12 @@ mock.module("node:child_process", () => {
   return {
     ...real,
     execSync: (command: string, options?: unknown) => {
-      if (command === "git config user.email") {
+      // Narrow match: tags.ts calls execSync with NO options. The git-fixture
+      // sanity test (tests/helpers/__sanity__.test.ts) calls the same command
+      // with { cwd: repo } to probe a tmp repo — those calls must pass through.
+      const hasCwd =
+        typeof options === "object" && options !== null && "cwd" in (options as Record<string, unknown>);
+      if (command === "git config user.email" && !hasCwd) {
         gitEmailCallCount++;
         if (gitEmailResponder === null) {
           throw new Error("test bug: gitEmailResponder not configured");
@@ -78,6 +83,10 @@ beforeEach(() => {
   mockConfig.projectContainerTag = undefined;
   gitEmailResponder = null;
   gitEmailCallCount = 0;
+  // T14: reset the in-process git-email cache between tests so each case
+  // sees a fresh execSync call path. Without this, cached results from
+  // earlier tests would mask the mocked responder.
+  tags.resetTagsCache();
   prevUser = process.env.USER;
   prevUsername = process.env.USERNAME;
 });
@@ -176,18 +185,18 @@ describe("getTags", () => {
   });
 });
 
-describe("characterization for T14 (caching refactor)", () => {
-  it("calls execSync ONCE per getGitEmail invocation today (T14 will collapse repeated calls to 1)", () => {
+describe("in-process cache for git email (T14)", () => {
+  it("cache hit: two getUserTag() calls trigger execSync exactly once", () => {
     gitEmailResponder = "test@example.com\n";
 
-    // Two independent calls — today each triggers its own execSync.
+    // Two independent calls — with caching, only the first hits execSync.
     tags.getUserTag();
     tags.getUserTag();
 
-    // Locks current behavior: 2 invocations -> 2 exec calls. After the T14
-    // caching refactor this assertion must change to `toBe(1)` (one cached
-    // lookup), confirming the caching is wired into both call sites.
-    expect(gitEmailCallCount).toBe(2);
+    // T14 caching: second call returns the cached email and skips execSync.
+    // Before T14 this assertion locked toBe(2); the change to toBe(1) is the
+    // observable proof that caching is wired into both call sites.
+    expect(gitEmailCallCount).toBe(1);
   });
 
   it("getTags() hits getGitEmail exactly once per call (project tag does not consult git)", () => {
@@ -195,9 +204,23 @@ describe("characterization for T14 (caching refactor)", () => {
 
     tags.getTags("/test/project");
 
-    // Today getTags() -> getUserTag() -> getGitEmail() == 1 call.
+    // getTags() -> getUserTag() -> getGitEmail() == 1 call.
     // getProjectTag does NOT touch git, so a single getTags() yields one
     // git call total.
+    expect(gitEmailCallCount).toBe(1);
+  });
+
+  it("cache hit: null result from a failed git call is cached (no retry)", () => {
+    gitEmailResponder = new Error("not a git repo");
+    process.env.USER = "alice";
+    delete process.env.USERNAME;
+
+    // Three calls — the first throws inside execSync, the next two should
+    // return the cached null without invoking execSync again.
+    tags.getGitEmail();
+    tags.getGitEmail();
+    tags.getUserTag(); // also routes through getGitEmail internally
+
     expect(gitEmailCallCount).toBe(1);
   });
 });
