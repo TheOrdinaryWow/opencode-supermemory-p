@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "build:bun": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
+    "build:bun": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./cli/index.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "check": "biome check --write",
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.162",
+    "citty": "^0.2.2",
     "supermemory": "^4.0.0",
     "zod": "^4.4.3"
   },

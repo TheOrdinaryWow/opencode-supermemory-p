@@ -1,6 +1,6 @@
 import { defineConfig } from "tsdown";
 
-const external = ["@opencode-ai/plugin", "supermemory"];
+const external = ["@opencode-ai/plugin", "supermemory", "citty"];
 const outExtensions = () => ({ js: ".js", dts: ".d.ts" });
 const defaultExportSyntaxPlugin = {
   name: "default-export-syntax",
@@ -28,7 +28,7 @@ export default defineConfig([
     },
   },
   {
-    entry: { cli: "src/cli.ts" },
+    entry: { cli: "cli/index.ts" },
     format: ["esm"],
     platform: "node",
     target: "node18",
