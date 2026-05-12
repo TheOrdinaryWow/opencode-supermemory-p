@@ -1,0 +1,532 @@
+import { beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// =====================================================================
+// Background — what we are pinning
+//
+// `src/services/client.ts` wraps the official `supermemory` SDK. The
+// wrapper translates every SDK call into a `{ success, ...data }` /
+// `{ success: false, error, ...fallback }` envelope. The shape of those
+// envelopes is currently INCONSISTENT across the eight public methods
+// (each method has its own fallback fields on error). T15 will unify
+// these into a `Result<T, E>` type — these tests freeze the current
+// shape so that refactor can rely on test failures to flag any
+// accidental behavior drift.
+//
+// We avoid the HTTP layer entirely by mocking the `supermemory` module
+// itself via `mock.module`. The mock exposes a class whose method
+// surface matches the SDK shape consumed by client.ts:
+//   - client.search.memories(opts)   →   { results, total, timing, ... }
+//   - client.profile(opts)           →   { profile, ... }
+//   - client.memories.add(opts)      →   { id, ... }
+//   - client.memories.delete(id)     →   any
+//   - client.memories.list(opts)     →   { memories, pagination, ... }
+//   - client.settings.update(opts)   →   any (fire-and-forget)
+//
+// `formatConversationMessage` / `formatConversationTranscript` are
+// private — they're observed indirectly via the `content` argument
+// passed to `memories.add` from inside `ingestConversation`.
+// =====================================================================
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, "..", "..");
+const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
+
+// Mutable per-test SDK behavior. Tests assign onto this before calling
+// the client; the mocked Supermemory class reads from it on every call.
+interface SdkCall {
+  args: unknown[];
+}
+const sdkState: {
+  searchMemories: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
+  profile: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
+  addMemory: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
+  deleteMemory: { calls: SdkCall[]; impl?: (id: string) => unknown };
+  listMemories: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
+  settingsUpdate: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
+} = {
+  searchMemories: { calls: [] },
+  profile: { calls: [] },
+  addMemory: { calls: [] },
+  deleteMemory: { calls: [] },
+  listMemories: { calls: [] },
+  settingsUpdate: { calls: [] },
+};
+
+// Mock the `supermemory` SDK module. Returns a class whose constructor
+// shape matches `new Supermemory({ apiKey })` and exposes the same
+// method tree client.ts navigates into.
+mock.module("supermemory", () => {
+  return {
+    default: class MockSupermemory {
+      search = {
+        memories: async (opts: unknown) => {
+          sdkState.searchMemories.calls.push({ args: [opts] });
+          const impl = sdkState.searchMemories.impl ?? (() => ({ results: [], total: 0, timing: 0 }));
+          return impl(opts);
+        },
+      };
+      profile = async (opts: unknown) => {
+        sdkState.profile.calls.push({ args: [opts] });
+        const impl = sdkState.profile.impl ?? (() => ({ profile: null }));
+        return impl(opts);
+      };
+      memories = {
+        add: async (opts: unknown) => {
+          sdkState.addMemory.calls.push({ args: [opts] });
+          const impl = sdkState.addMemory.impl ?? (() => ({ id: "mem_default" }));
+          return impl(opts);
+        },
+        delete: async (id: string) => {
+          sdkState.deleteMemory.calls.push({ args: [id] });
+          const impl = sdkState.deleteMemory.impl ?? (() => undefined);
+          return impl(id);
+        },
+        list: async (opts: unknown) => {
+          sdkState.listMemories.calls.push({ args: [opts] });
+          const impl =
+            sdkState.listMemories.impl ?? (() => ({ memories: [], pagination: { currentPage: 1, totalItems: 0, totalPages: 0 } }));
+          return impl(opts);
+        },
+      };
+      settings = {
+        update: async (opts: unknown) => {
+          sdkState.settingsUpdate.calls.push({ args: [opts] });
+          const impl = sdkState.settingsUpdate.impl ?? (() => undefined);
+          return impl(opts);
+        },
+      };
+    },
+  };
+});
+
+// Mock config so client.ts sees deterministic CONFIG values and a
+// non-empty API key (isConfigured() => true). Without this, the
+// `isConfigured` check at line 36 of client.ts would short-circuit
+// and throw "SUPERMEMORY_API_KEY not set".
+mock.module(CONFIG_ABS, () => ({
+  CONFIG: {
+    similarityThreshold: 0.6,
+    maxMemories: 5,
+    maxProjectMemories: 10,
+    maxProfileItems: 5,
+    injectProfile: true,
+    containerTagPrefix: "opencode",
+    filterPrompt: "test-filter-prompt",
+    keywordPatterns: [],
+    compactionThreshold: 0.8,
+  },
+  SUPERMEMORY_API_KEY: "sm_test_key",
+  isConfigured: () => true,
+}));
+
+// Dynamic import so both mocks are in effect before client.ts loads.
+let SupermemoryClient: typeof import("../../src/services/client.ts").SupermemoryClient;
+
+beforeAll(async () => {
+  const mod = await import("../../src/services/client.ts");
+  SupermemoryClient = mod.SupermemoryClient;
+});
+
+function resetSdkState(): void {
+  sdkState.searchMemories.calls.length = 0;
+  sdkState.searchMemories.impl = undefined;
+  sdkState.profile.calls.length = 0;
+  sdkState.profile.impl = undefined;
+  sdkState.addMemory.calls.length = 0;
+  sdkState.addMemory.impl = undefined;
+  sdkState.deleteMemory.calls.length = 0;
+  sdkState.deleteMemory.impl = undefined;
+  sdkState.listMemories.calls.length = 0;
+  sdkState.listMemories.impl = undefined;
+  sdkState.settingsUpdate.calls.length = 0;
+  sdkState.settingsUpdate.impl = undefined;
+}
+
+beforeEach(() => {
+  resetSdkState();
+});
+
+// =====================================================================
+// searchMemories — 2 paths (success / error)
+// =====================================================================
+
+describe("SupermemoryClient.searchMemories", () => {
+  it("success: returns { success: true, ...sdkResult } and forwards CONFIG into the SDK call", async () => {
+    sdkState.searchMemories.impl = () => ({
+      results: [{ id: "mem_1", content: "hello", similarity: 0.9 }],
+      total: 1,
+      timing: 12,
+    });
+    const client = new SupermemoryClient();
+    const out = await client.searchMemories("q", "tag_a");
+
+    // Shape is `success: true` spread over the SDK result. Inconsistency
+    // note: error path adds `results: [], total: 0, timing: 0` fields,
+    // success path does NOT redeclare them — they come from spread.
+    expect(out.success).toBe(true);
+    expect((out as { results: unknown[] }).results).toEqual([{ id: "mem_1", content: "hello", similarity: 0.9 }]);
+    expect((out as { total: number }).total).toBe(1);
+    expect((out as { timing: number }).timing).toBe(12);
+
+    // SDK call shape pinned: searchMode "hybrid", threshold/limit from CONFIG.
+    expect(sdkState.searchMemories.calls).toHaveLength(1);
+    expect(sdkState.searchMemories.calls[0]?.args[0]).toEqual({
+      q: "q",
+      containerTag: "tag_a",
+      threshold: 0.6,
+      limit: 5,
+      searchMode: "hybrid",
+    });
+  });
+
+  it("error: SDK throw → returns { success: false, error, results: [], total: 0, timing: 0 } envelope", async () => {
+    sdkState.searchMemories.impl = () => {
+      throw new Error("boom: 503 service unavailable");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.searchMemories("q", "tag_a");
+
+    // T15 will unify; for now this is the literal shape callers depend on.
+    expect(out).toEqual({
+      success: false,
+      error: "boom: 503 service unavailable",
+      results: [],
+      total: 0,
+      timing: 0,
+    });
+  });
+});
+
+// =====================================================================
+// getProfile — 2 paths (success / error)
+// =====================================================================
+
+describe("SupermemoryClient.getProfile", () => {
+  it("success: returns { success: true, ...sdkResult } and forwards query into the SDK", async () => {
+    sdkState.profile.impl = () => ({ profile: { static: ["a"], dynamic: ["b"] } });
+    const client = new SupermemoryClient();
+    const out = await client.getProfile("tag_user", "search?");
+
+    expect(out.success).toBe(true);
+    expect((out as { profile: unknown }).profile).toEqual({ static: ["a"], dynamic: ["b"] });
+    expect(sdkState.profile.calls[0]?.args[0]).toEqual({ containerTag: "tag_user", q: "search?" });
+  });
+
+  it("error: SDK throw → returns { success: false, error, profile: null } (note: distinct fallback shape from searchMemories)", async () => {
+    sdkState.profile.impl = () => {
+      throw new Error("401 unauthorized");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.getProfile("tag_user");
+
+    expect(out).toEqual({
+      success: false,
+      error: "401 unauthorized",
+      profile: null,
+    });
+  });
+});
+
+// =====================================================================
+// addMemory — 2 paths (success / error)
+// =====================================================================
+
+describe("SupermemoryClient.addMemory", () => {
+  it("success: returns { success: true, id, ... } and forwards content + metadata to the SDK", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_new_123", status: "stored" });
+    const client = new SupermemoryClient();
+    const out = await client.addMemory("hello world", "tag_p", { type: "preference", tool: "test" });
+
+    expect(out.success).toBe(true);
+    expect((out as { id: string }).id).toBe("mem_new_123");
+
+    expect(sdkState.addMemory.calls[0]?.args[0]).toEqual({
+      content: "hello world",
+      containerTag: "tag_p",
+      metadata: { type: "preference", tool: "test" },
+    });
+  });
+
+  it("error: SDK throw → returns { success: false, error } (minimal shape — no fallback `id`)", async () => {
+    sdkState.addMemory.impl = () => {
+      throw new Error("rate limited");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.addMemory("x", "tag_p");
+
+    expect(out).toEqual({ success: false, error: "rate limited" });
+  });
+});
+
+// =====================================================================
+// deleteMemory — 2 paths (success / error)
+// =====================================================================
+
+describe("SupermemoryClient.deleteMemory", () => {
+  it("success: returns { success: true } (no spread of SDK result — distinct shape)", async () => {
+    sdkState.deleteMemory.impl = () => ({ acknowledged: true });
+    const client = new SupermemoryClient();
+    const out = await client.deleteMemory("mem_abc");
+
+    // Note: this method is the ONLY one that drops the `as const`
+    // narrow on success. The result type is plain `{success: boolean}`
+    // here. Pinned so the T15 unification surfaces it.
+    expect(out).toEqual({ success: true });
+    expect(sdkState.deleteMemory.calls[0]?.args[0]).toBe("mem_abc");
+  });
+
+  it("error: SDK throw → returns { success: false, error }", async () => {
+    sdkState.deleteMemory.impl = () => {
+      throw new Error("not found");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.deleteMemory("mem_abc");
+
+    expect(out).toEqual({ success: false, error: "not found" });
+  });
+});
+
+// =====================================================================
+// listMemories — 2 paths (success / error)
+// =====================================================================
+
+describe("SupermemoryClient.listMemories", () => {
+  it("success: returns { success: true, memories, pagination } and uses default limit=20", async () => {
+    sdkState.listMemories.impl = () => ({
+      memories: [{ id: "m1", content: "c1" }],
+      pagination: { currentPage: 1, totalItems: 1, totalPages: 1 },
+    });
+    const client = new SupermemoryClient();
+    const out = await client.listMemories("tag_p");
+
+    expect(out.success).toBe(true);
+    expect((out as { memories: unknown[] }).memories).toEqual([{ id: "m1", content: "c1" }]);
+
+    // SDK options pinned (note: containerTags is an ARRAY here, not a string).
+    expect(sdkState.listMemories.calls[0]?.args[0]).toEqual({
+      containerTags: ["tag_p"],
+      limit: 20,
+      order: "desc",
+      sort: "createdAt",
+      includeContent: true,
+    });
+  });
+
+  it("error: SDK throw → returns { success: false, error, memories: [], pagination: { currentPage: 1, totalItems: 0, totalPages: 0 } }", async () => {
+    sdkState.listMemories.impl = () => {
+      throw new Error("oops");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.listMemories("tag_p", 50);
+
+    // Custom limit also forwarded.
+    expect(out).toEqual({
+      success: false,
+      error: "oops",
+      memories: [],
+      pagination: { currentPage: 1, totalItems: 0, totalPages: 0 },
+    });
+  });
+});
+
+// =====================================================================
+// ingestConversation — composite method, exercises BOTH private
+// formatters (formatConversationMessage / formatConversationTranscript)
+// through the `content` argument captured on each addMemory call.
+// =====================================================================
+
+describe("SupermemoryClient.ingestConversation", () => {
+  it("error: empty messages array short-circuits with { success: false, error: 'No messages to ingest' } before any addMemory call", async () => {
+    const client = new SupermemoryClient();
+    const out = await client.ingestConversation("conv_1", [], ["tag_a"]);
+
+    expect(out).toEqual({ success: false, error: "No messages to ingest" });
+    expect(sdkState.addMemory.calls).toHaveLength(0);
+  });
+
+  it("error: containerTags collapsing to empty (after dedup + length filter) returns { success: false, error: 'At least one containerTag is required' }", async () => {
+    const client = new SupermemoryClient();
+    // Both entries collapse to empty after the `tag.length > 0` filter on line 160.
+    const out = await client.ingestConversation("conv_1", [{ role: "user", content: "hi" }], ["", ""]);
+
+    expect(out).toEqual({ success: false, error: "At least one containerTag is required" });
+    expect(sdkState.addMemory.calls).toHaveLength(0);
+  });
+
+  it("success: single tag, string content — locks the transcript prefix format `[Conversation <id>]\\n1. [role] <text>`", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_stored_1" });
+    const client = new SupermemoryClient();
+    const out = await client.ingestConversation(
+      "conv_42",
+      [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "hi there" },
+      ],
+      ["tag_p"],
+    );
+
+    expect(out.success).toBe(true);
+    expect((out as { status: string }).status).toBe("stored");
+    expect((out as { storedMemoryIds: string[] }).storedMemoryIds).toEqual(["mem_stored_1"]);
+
+    // Verify the formatted content reaches addMemory.
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
+    expect(addCall.content).toMatchInlineSnapshot(`
+"[Conversation conv_42]
+1. [user] hello
+2. [assistant] hi there"
+`);
+  });
+
+  it("success: array content with text parts is concatenated with `\\n` and prefixed by `[role]`", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_arr_1" });
+    const client = new SupermemoryClient();
+    await client.ingestConversation(
+      "conv_arr",
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "first" },
+            { type: "text", text: "second" },
+          ],
+        },
+      ],
+      ["tag_p"],
+    );
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
+    // `\n` between parts inside the SAME message, then trimmed.
+    expect(addCall.content).toMatchInlineSnapshot(`
+"[Conversation conv_arr]
+1. [user] first
+second"
+`);
+  });
+
+  it("success: image part is formatted as `[image] <url>` and joined with sibling text parts", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_img_1" });
+    const client = new SupermemoryClient();
+    await client.ingestConversation(
+      "conv_img",
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "look at this" },
+            { type: "image_url", imageUrl: { url: "https://example.com/cat.png" } },
+          ],
+        },
+      ],
+      ["tag_p"],
+    );
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
+    expect(addCall.content).toMatchInlineSnapshot(`
+"[Conversation conv_img]
+1. [user] look at this
+[image] https://example.com/cat.png"
+`);
+  });
+
+  it("success: whitespace-only string content renders bare `[role]` with NO trailing space (trimmed empty branch on line 25)", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_blank_1" });
+    const client = new SupermemoryClient();
+    await client.ingestConversation("conv_blank", [{ role: "system", content: "   \n  " }], ["tag_p"]);
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
+    expect(addCall.content).toMatchInlineSnapshot(`
+"[Conversation conv_blank]
+1. [system]"
+`);
+  });
+
+  it("success: multi-tag — addMemory is called once per UNIQUE tag and ingestMetadata.originalContainerTags reflects the deduped set", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_multi_1" });
+    const client = new SupermemoryClient();
+    const out = await client.ingestConversation(
+      "conv_m",
+      [{ role: "user", content: "x" }],
+      // duplicate "tag_a" should collapse to one call.
+      ["tag_a", "tag_b", "tag_a"],
+    );
+
+    expect(out.success).toBe(true);
+    expect((out as { status: string }).status).toBe("stored");
+    expect(sdkState.addMemory.calls).toHaveLength(2);
+
+    const firstCall = sdkState.addMemory.calls[0]?.args[0] as { containerTag: string; metadata: Record<string, unknown> };
+    expect(firstCall.containerTag).toBe("tag_a");
+    // metadata.originalContainerTags is the DEDUPED list — order from Set iteration.
+    expect(firstCall.metadata.originalContainerTags).toEqual(["tag_a", "tag_b"]);
+    expect(firstCall.metadata.type).toBe("conversation");
+    expect(firstCall.metadata.conversationId).toBe("conv_m");
+    expect(firstCall.metadata.messageCount).toBe(1);
+  });
+
+  it("success: when some tags succeed and some fail, status becomes 'partial' and storedMemoryIds only contains successful ids", async () => {
+    let call = 0;
+    sdkState.addMemory.impl = () => {
+      call += 1;
+      if (call === 1) return { id: "mem_ok" };
+      if (call === 2) throw new Error("temporary failure");
+      return { id: "mem_ok_3" };
+    };
+    const client = new SupermemoryClient();
+    const out = await client.ingestConversation("conv_p", [{ role: "user", content: "x" }], ["tag_a", "tag_b", "tag_c"]);
+
+    expect(out.success).toBe(true);
+    expect((out as { status: string }).status).toBe("partial");
+    expect((out as { storedMemoryIds: string[] }).storedMemoryIds).toEqual(["mem_ok", "mem_ok_3"]);
+  });
+
+  it("error: when EVERY tag fails, returns { success: false, error: <first error> } (no successful id is reported)", async () => {
+    sdkState.addMemory.impl = () => {
+      throw new Error("all fail");
+    };
+    const client = new SupermemoryClient();
+    const out = await client.ingestConversation("conv_f", [{ role: "user", content: "x" }], ["tag_a", "tag_b"]);
+
+    expect(out).toEqual({ success: false, error: "all fail" });
+  });
+
+  it("success: oversized transcript is truncated to MAX_CONVERSATION_CHARS (100_000) with `\\n...[truncated]` suffix", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_trunc_1" });
+    const client = new SupermemoryClient();
+    // 60k chars of message content → header + transcript exceeds 100k.
+    const bigText = "a".repeat(60_000);
+    await client.ingestConversation(
+      "conv_big",
+      [
+        { role: "user", content: bigText },
+        { role: "assistant", content: bigText },
+      ],
+      ["tag_p"],
+    );
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { content: string };
+    // Truncation suffix is `\n...[truncated]` (15 chars) after slice(0, 100_000).
+    expect(addCall.content.length).toBe(100_000 + "\n...[truncated]".length);
+    expect(addCall.content.endsWith("\n...[truncated]")).toBe(true);
+  });
+
+  it("success: extra metadata supplied by caller is merged into ingestMetadata (custom keys preserved)", async () => {
+    sdkState.addMemory.impl = () => ({ id: "mem_meta_1" });
+    const client = new SupermemoryClient();
+    await client.ingestConversation("conv_meta", [{ role: "user", content: "x" }], ["tag_p"], {
+      customA: "v1",
+      customB: 42,
+      customC: true,
+    });
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { metadata: Record<string, unknown> };
+    expect(addCall.metadata.customA).toBe("v1");
+    expect(addCall.metadata.customB).toBe(42);
+    expect(addCall.metadata.customC).toBe(true);
+    // Built-in metadata keys still present.
+    expect(addCall.metadata.type).toBe("conversation");
+    expect(addCall.metadata.conversationId).toBe("conv_meta");
+  });
+});
