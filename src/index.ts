@@ -1,39 +1,14 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import type { Part } from "@opencode-ai/sdk";
 
+import { handleChatMessage } from "./chat/handler.js";
 import { CONFIG, isConfigured } from "./config.js";
 import { supermemoryClient } from "./services/client.js";
 import { type CompactionContext, createCompactionHook } from "./services/compaction.js";
-import { formatContextForPrompt } from "./services/context.js";
 import { log } from "./services/logger.js";
 import { isFullyPrivate, stripPrivateContent } from "./services/privacy.js";
 import { getTags } from "./services/tags.js";
 import type { MemoryScope, MemoryType } from "./types/index.js";
-
-const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g;
-const INLINE_CODE_PATTERN = /`[^`]+`/g;
-
-const MEMORY_KEYWORD_PATTERN = new RegExp(`\\b(${CONFIG.keywordPatterns.join("|")})\\b`, "i");
-
-const MEMORY_NUDGE_MESSAGE = `[MEMORY TRIGGER DETECTED]
-The user wants you to remember something. You MUST use the \`supermemory\` tool with \`mode: "add"\` to save this information.
-
-Extract the key information the user wants remembered and save it as a concise, searchable memory.
-- Use \`scope: "project"\` for project-specific preferences (e.g., "run lint with tests")
-- Use \`scope: "user"\` for cross-project preferences (e.g., "prefers concise responses")
-- Choose an appropriate \`type\`: "preference", "project-config", "learned-pattern", etc.
-
-DO NOT skip this step. The user explicitly asked you to remember.`;
-
-function removeCodeBlocks(text: string): string {
-  return text.replace(CODE_BLOCK_PATTERN, "").replace(INLINE_CODE_PATTERN, "");
-}
-
-function detectMemoryKeyword(text: string): boolean {
-  const textWithoutCode = removeCodeBlocks(text);
-  return MEMORY_KEYWORD_PATTERN.test(textWithoutCode);
-}
 
 export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   const { directory } = ctx;
@@ -81,97 +56,15 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
       : null;
 
   return {
-    "chat.message": async (input, output) => {
-      if (!isConfigured()) return;
-
-      const start = Date.now();
-
-      try {
-        const textParts = output.parts.filter((p): p is Part & { type: "text"; text: string } => p.type === "text");
-
-        if (textParts.length === 0) {
-          log("chat.message: no text parts found");
-          return;
-        }
-
-        const userMessage = textParts.map((p) => p.text).join("\n");
-
-        if (!userMessage.trim()) {
-          log("chat.message: empty message, skipping");
-          return;
-        }
-
-        log("chat.message: processing", {
-          messagePreview: userMessage.slice(0, 100),
-          partsCount: output.parts.length,
-          textPartsCount: textParts.length,
-        });
-
-        if (detectMemoryKeyword(userMessage)) {
-          log("chat.message: memory keyword detected");
-          const nudgePart: Part = {
-            id: `prt_supermemory-nudge-${Date.now()}`,
-            sessionID: input.sessionID,
-            messageID: output.message.id,
-            type: "text",
-            text: MEMORY_NUDGE_MESSAGE,
-            synthetic: true,
-          };
-          output.parts.push(nudgePart);
-        }
-
-        const isFirstMessage = !injectedSessions.has(input.sessionID);
-
-        if (isFirstMessage) {
-          injectedSessions.add(input.sessionID);
-
-          const [profileResult, userMemoriesResult, projectMemoriesListResult] = await Promise.all([
-            supermemoryClient.getProfile(tags.user, userMessage),
-            supermemoryClient.searchMemories(userMessage, tags.user),
-            supermemoryClient.listMemories(tags.project, CONFIG.maxProjectMemories),
-          ]);
-
-          const profile = profileResult.success ? profileResult : null;
-          const userMemories = userMemoriesResult.success ? userMemoriesResult : { results: [] };
-          const projectMemoriesList = projectMemoriesListResult.success ? projectMemoriesListResult : { memories: [] };
-
-          const projectMemories = {
-            results: (projectMemoriesList.memories || []).map((m) => ({
-              id: m.id,
-              memory: m.summary || m.content || m.title || "",
-              similarity: 1,
-              title: m.title,
-              metadata: m.metadata,
-            })),
-            total: projectMemoriesList.memories?.length || 0,
-            timing: 0,
-          };
-
-          const memoryContext = formatContextForPrompt(profile, userMemories, projectMemories);
-
-          if (memoryContext) {
-            const contextPart: Part = {
-              id: `prt_supermemory-context-${Date.now()}`,
-              sessionID: input.sessionID,
-              messageID: output.message.id,
-              type: "text",
-              text: memoryContext,
-              synthetic: true,
-            };
-
-            output.parts.unshift(contextPart);
-
-            const duration = Date.now() - start;
-            log("chat.message: context injected", {
-              duration,
-              contextLength: memoryContext.length,
-            });
-          }
-        }
-      } catch (error) {
-        log("chat.message: ERROR", { error: String(error) });
-      }
-    },
+    "chat.message": (input, output) =>
+      handleChatMessage(input, output, {
+        client: supermemoryClient,
+        config: CONFIG,
+        tags,
+        injectedSessions,
+        log,
+        isConfigured,
+      }),
 
     tool: {
       supermemory: tool({
