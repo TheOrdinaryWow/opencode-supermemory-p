@@ -1,4 +1,4 @@
-import type { ToolArgs, ToolDeps } from "./index.js";
+import type { ToolArgs, ToolDeps } from "@/tool/index";
 
 export async function executeProfile(args: ToolArgs, deps: ToolDeps): Promise<string> {
   const result = await deps.client.getProfile(deps.tags.user, args.query);

@@ -1,5 +1,5 @@
-import { formatSearchResults } from "./format.js";
-import type { ToolArgs, ToolDeps } from "./index.js";
+import { formatSearchResults } from "@/tool/format";
+import type { ToolArgs, ToolDeps } from "@/tool/index";
 
 export async function executeSearch(args: ToolArgs, deps: ToolDeps): Promise<string> {
   if (!args.query) {

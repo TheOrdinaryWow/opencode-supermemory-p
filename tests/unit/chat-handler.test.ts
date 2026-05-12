@@ -2,11 +2,11 @@ import { describe, expect, it } from "bun:test";
 
 import type { Part } from "@opencode-ai/sdk";
 
-import type { ChatClientLike, ChatHandlerDeps } from "../../src/chat/handler.ts";
-import { handleChatMessage } from "../../src/chat/handler.ts";
-import { detectMemoryKeyword } from "../../src/chat/keywords.ts";
-import { MEMORY_NUDGE_MESSAGE, removeCodeBlocks } from "../../src/chat/nudge.ts";
-import { createSessionState } from "../../src/session/state.ts";
+import type { ChatClientLike, ChatHandlerDeps } from "@/chat/handler";
+import { handleChatMessage } from "@/chat/handler";
+import { detectMemoryKeyword } from "@/chat/keywords";
+import { MEMORY_NUDGE_MESSAGE, removeCodeBlocks } from "@/chat/nudge";
+import { createSessionState } from "@/session/state";
 
 // ---------------------------------------------------------------------------
 // Test-only helpers
@@ -204,7 +204,7 @@ describe("handleChatMessage", () => {
     });
     const output = emptyOutput([textPart("hi")]);
 
-    await expect(handleChatMessage({ sessionID: "ses_err" }, output, deps)).resolves.toBeUndefined();
+    await handleChatMessage({ sessionID: "ses_err" }, output, deps);
     expect(deps.logs.some((l) => l.msg.includes("ERROR"))).toBe(true);
   });
 });

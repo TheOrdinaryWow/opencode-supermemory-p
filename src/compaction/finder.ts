@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { defaultLogger as logger } from "../shared/logger.js";
+import { defaultLogger as logger } from "@/shared/logger";
 
 /**
  * Minimal subset of an OpenCode stored message that compaction logic cares

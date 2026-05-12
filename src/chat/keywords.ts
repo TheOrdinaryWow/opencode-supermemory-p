@@ -12,9 +12,9 @@
  * inspect or extend the baseline list without reaching into `src/config/*`.
  */
 
-import { removeCodeBlocks } from "./nudge.js";
+import { removeCodeBlocks } from "@/chat/nudge";
 
-export { DEFAULT_KEYWORD_PATTERNS } from "../config/defaults.js";
+export { DEFAULT_KEYWORD_PATTERNS } from "@/config/defaults";
 
 export interface KeywordConfig {
   keywordPatterns: readonly string[];

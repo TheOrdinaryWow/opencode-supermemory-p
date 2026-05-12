@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { createFailurePage, createSuccessPage } from "./callback-pages.js";
+import { createFailurePage, createSuccessPage } from "@/auth/callback-pages";
 
 export interface CallbackServerOptions {
   port: number;

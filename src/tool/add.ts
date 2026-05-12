@@ -1,5 +1,5 @@
-import { isFullyPrivate, stripPrivateContent } from "../memory/privacy.js";
-import type { ToolArgs, ToolDeps } from "./index.js";
+import { isFullyPrivate, stripPrivateContent } from "@/memory/privacy";
+import type { ToolArgs, ToolDeps } from "@/tool/index";
 
 export async function executeAdd(args: ToolArgs, deps: ToolDeps): Promise<string> {
   if (!args.content) {

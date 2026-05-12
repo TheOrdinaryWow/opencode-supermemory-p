@@ -2,11 +2,11 @@ import { beforeAll, describe, expect, it } from "bun:test";
 
 
 // Dynamic import so the mock above is in effect.
-let formatContextForPrompt: typeof import("../../src/memory/context.ts").formatContextForPrompt;
+let formatContextForPrompt: typeof import("@/memory/context").formatContextForPrompt;
 const testConfig = { injectProfile: true, maxProfileItems: 5 };
 
 beforeAll(async () => {
-  const mod = await import("../../src/memory/context.ts");
+  const mod = await import("@/memory/context");
   formatContextForPrompt = mod.formatContextForPrompt;
 });
 

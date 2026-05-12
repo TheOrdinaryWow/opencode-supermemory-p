@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import fsExtra from "fs-extra";
 
-import { defaultLogger } from "../shared/logger.js";
-import { findNearestMessageWithFields } from "./finder.js";
+import { defaultLogger } from "@/shared/logger";
+import { findNearestMessageWithFields } from "@/compaction/finder";
 
 const { ensureDirSync } = fsExtra;
 

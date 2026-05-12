@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
+import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
@@ -383,7 +383,7 @@ describe("keywordPatterns — DEFAULT_KEYWORD_PATTERNS always present, invalid r
 
 describe("SupermemoryConfigSchema — in-process zod validation", () => {
   it("parse({}) returns every default field — apiKey/userContainerTag/projectContainerTag stay undefined", async () => {
-    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    const { SupermemoryConfigSchema } = await import("@/config/schema");
     const result = SupermemoryConfigSchema.parse({});
     expect(result.apiKey).toBeUndefined();
     expect(result.userContainerTag).toBeUndefined();
@@ -399,7 +399,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
   });
 
   it("per-field .catch() recovers silently from wrong-type input", async () => {
-    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    const { SupermemoryConfigSchema } = await import("@/config/schema");
     // Every field gets a string where its declared type expects something else.
     const result = SupermemoryConfigSchema.parse({
       similarityThreshold: "not-a-number",
@@ -424,7 +424,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
   });
 
   it("compactionThreshold range gate: (0, 1] — boundary 1 accepted, 0 rejected, > 1 rejected", async () => {
-    const { SupermemoryConfigSchema } = await import("../../src/config/schema.ts");
+    const { SupermemoryConfigSchema } = await import("@/config/schema");
     expect(SupermemoryConfigSchema.parse({ compactionThreshold: 1 }).compactionThreshold).toBe(1);
     expect(SupermemoryConfigSchema.parse({ compactionThreshold: 0.5 }).compactionThreshold).toBe(0.5);
     expect(SupermemoryConfigSchema.parse({ compactionThreshold: 0 }).compactionThreshold).toBe(0.8);
@@ -436,7 +436,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
 
 describe("loadConfig / getConfig — lazy in-process API", () => {
   it("loadConfig({ homeDir, env }) returns DEFAULTS when no config file or env apiKey is present", async () => {
-    const { loadConfig } = await import("../../src/config/loader.ts");
+    const { loadConfig } = await import("@/config/loader");
     const tmpHome = createTmpDir("loader-defaults");
     try {
       const result = loadConfig({ homeDir: tmpHome, env: {} });
@@ -452,7 +452,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
   });
 
   it("loadConfig({ env: { SUPERMEMORY_API_KEY } }) honours env even when no file is present", async () => {
-    const { loadConfig } = await import("../../src/config/loader.ts");
+    const { loadConfig } = await import("@/config/loader");
     const tmpHome = createTmpDir("loader-env");
     try {
       const result = loadConfig({ homeDir: tmpHome, env: { SUPERMEMORY_API_KEY: "sm_from_env_inproc" } });
@@ -463,7 +463,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
   });
 
   it("loadConfig reads ~/.config/opencode/supermemory.jsonc when present", async () => {
-    const { loadConfig } = await import("../../src/config/loader.ts");
+    const { loadConfig } = await import("@/config/loader");
     const tmpHome = createTmpDir("loader-jsonc");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
@@ -481,7 +481,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
   });
 
   it("loadConfig silently drops invalid keywordPatterns regex strings while keeping defaults", async () => {
-    const { loadConfig } = await import("../../src/config/loader.ts");
+    const { loadConfig } = await import("@/config/loader");
     const tmpHome = createTmpDir("loader-regex");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
@@ -497,7 +497,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
   });
 
   it("getConfig caches the first call; resetConfigCache forces a re-load", async () => {
-    const { getConfig, resetConfigCache } = await import("../../src/config/loader.ts");
+    const { getConfig, resetConfigCache } = await import("@/config/loader");
     resetConfigCache();
     const a = getConfig();
     const b = getConfig();

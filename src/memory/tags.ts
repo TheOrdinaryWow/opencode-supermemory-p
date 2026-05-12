@@ -1,8 +1,8 @@
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
-import { getConfig } from "../config/loader.js";
-import type { SupermemoryConfig } from "../config/schema.js";
+import { getConfig } from "@/config/loader";
+import type { SupermemoryConfig } from "@/config/schema";
 
 function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 16);

@@ -1,4 +1,4 @@
-import type { AppError } from "./errors.js";
+import type { AppError } from "@/shared/errors";
 
 /**
  * Result<T, E> — explicit success/failure discriminated union. Use over

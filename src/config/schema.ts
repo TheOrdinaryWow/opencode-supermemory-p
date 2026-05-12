@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { DEFAULTS } from "./defaults.js";
+import { DEFAULTS } from "@/config/defaults";
 
 /**
  * Zod schema for the resolved Supermemory plugin configuration.

@@ -54,10 +54,10 @@ mock.module("node:child_process", () => {
   };
 });
 
-let tags: typeof import("../../src/memory/tags.ts");
+let tags: typeof import("@/memory/tags");
 
 beforeEach(async () => {
-  tags ??= await import("../../src/memory/tags.ts");
+  tags ??= await import("@/memory/tags");
 });
 
 // Save / restore env between tests so the process.env.USER fallback path

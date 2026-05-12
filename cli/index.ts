@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { defineCommand, runMain } from "citty";
 
-import installCommand, { setupCommand } from "./commands/install.js";
-import loginCommand from "./commands/login.js";
-import logoutCommand from "./commands/logout.js";
+import installCommand, { setupCommand } from "@cli/commands/install";
+import loginCommand from "@cli/commands/login";
+import logoutCommand from "@cli/commands/logout";
 
 const HELP = `
 opencode-supermemory - Persistent memory for OpenCode agents

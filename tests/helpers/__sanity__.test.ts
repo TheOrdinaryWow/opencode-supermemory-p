@@ -129,7 +129,13 @@ describe("mock-fetch helper (strict)", () => {
   beforeEach(() => resetMockFetch());
 
   it("throws containing 'unmocked URL' on unregistered URLs", async () => {
-    await expect(fetch("https://nope.example.com/")).rejects.toThrow(/unmocked URL: https:\/\/nope\.example\.com\//);
+    try {
+      await fetch("https://nope.example.com/");
+      throw new Error("expected fetch to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/unmocked URL: https:\/\/nope\.example\.com\//);
+    }
   });
 
   it("returns a registered static Response", async () => {

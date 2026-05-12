@@ -1,7 +1,7 @@
 import type { ProfileResponse } from "supermemory/resources";
 
-import { getConfig } from "../config/loader.js";
-import type { SupermemoryConfig } from "../config/schema.js";
+import { getConfig } from "@/config/loader";
+import type { SupermemoryConfig } from "@/config/schema";
 
 interface MemoryResultMinimal {
   similarity?: number;

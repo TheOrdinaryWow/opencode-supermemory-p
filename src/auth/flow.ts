@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
 
-import { createCallbackServer } from "./callback-server.js";
-import { saveCredentials } from "./credentials.js";
+import { createCallbackServer } from "@/auth/callback-server";
+import { saveCredentials } from "@/auth/credentials";
 
 export const AUTH_PORT = 19877;
 const AUTH_CALLBACK_PATH = "/callback";

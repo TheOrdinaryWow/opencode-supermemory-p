@@ -1,11 +1,11 @@
-import { getConfig } from "../config/loader.js";
-import { supermemoryClient } from "../memory/client.js";
-import { defaultLogger as logger } from "../shared/logger.js";
-import { findNearestMessageWithFields } from "./finder.js";
-import { getMessageDir, injectHookMessage } from "./message-store.js";
-import { createCompactionPrompt } from "./prompt.js";
-import { type CompactionState, createCompactionState } from "./state.js";
-import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "./threshold.js";
+import { getConfig } from "@/config/loader";
+import { supermemoryClient } from "@/memory/client";
+import { defaultLogger as logger } from "@/shared/logger";
+import { findNearestMessageWithFields } from "@/compaction/finder";
+import { getMessageDir, injectHookMessage } from "@/compaction/message-store";
+import { createCompactionPrompt } from "@/compaction/prompt";
+import { type CompactionState, createCompactionState } from "@/compaction/state";
+import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "@/compaction/threshold";
 
 export interface MessageInfo {
   id: string;

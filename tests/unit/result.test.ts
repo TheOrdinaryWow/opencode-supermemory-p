@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import type { AppError } from "../../src/shared/errors.ts";
-import { err, isErr, isOk, ok, type Result } from "../../src/shared/result.ts";
+import type { AppError } from "@/shared/errors";
+import { err, isErr, isOk, ok, type Result } from "@/shared/result";
 
 describe("Result — constructors", () => {
   it("ok() wraps a value in the success branch", () => {

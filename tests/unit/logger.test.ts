@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { createLogger } from "../../src/shared/logger.ts";
-import { useTmpDir } from "../helpers/tmpdir.ts";
+import { createLogger } from "@/shared/logger";
+import { useTmpDir } from "../helpers/tmpdir";
 
 const LOGGER_MODULE_ABS = resolve(import.meta.dir, "../../src/shared/logger.ts");
 

@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { OPENCODE_CONFIG_DIR } from "./opencode-config.js";
+import { OPENCODE_CONFIG_DIR } from "@cli/opencode-config";
 
 const OPENCODE_COMMAND_DIR = join(OPENCODE_CONFIG_DIR, "command");
 

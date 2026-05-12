@@ -2,10 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { loadCredentials } from "../auth/credentials.js";
-import { parseJsonc } from "../shared/jsonc.js";
-import { DEFAULT_KEYWORD_PATTERNS } from "./defaults.js";
-import { type SupermemoryConfig, SupermemoryConfigSchema } from "./schema.js";
+import { loadCredentials } from "@/auth/credentials";
+import { parseJsonc } from "@/shared/jsonc";
+import { DEFAULT_KEYWORD_PATTERNS } from "@/config/defaults";
+import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 
 /**
  * Optional dependency-injection knobs for `loadConfig`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { handleEvent } from "../../src/events/handler.ts";
+import { handleEvent } from "@/events/handler";
 
 interface RecordedCall {
   event: { type: string; properties?: unknown };
@@ -40,7 +40,7 @@ describe("handleEvent", () => {
   it("is a no-op when compactionHook is null", async () => {
     const input = { event: { type: "session.created" } };
 
-    await expect(handleEvent(input, { compactionHook: null })).resolves.toBeUndefined();
+    await handleEvent(input, { compactionHook: null });
   });
 
   it("awaits the delegated hook (propagates the promise)", async () => {
@@ -64,7 +64,13 @@ describe("handleEvent", () => {
       },
     };
 
-    await expect(handleEvent({ event: { type: "x" } }, { compactionHook: hook })).rejects.toThrow("compaction failed");
+    try {
+      await handleEvent({ event: { type: "x" } }, { compactionHook: hook });
+      throw new Error("expected handleEvent to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("compaction failed");
+    }
   });
 
   it("handles events without properties", async () => {

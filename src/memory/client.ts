@@ -1,10 +1,10 @@
 import Supermemory from "supermemory";
 
-import { getConfig } from "../config/loader.js";
-import type { AppError } from "../shared/errors.js";
-import { defaultLogger } from "../shared/logger.js";
-import { err, ok, type Result } from "../shared/result.js";
-import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
+import { getConfig } from "@/config/loader";
+import type { AppError } from "@/shared/errors";
+import { defaultLogger } from "@/shared/logger";
+import { err, ok, type Result } from "@/shared/result";
+import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "@/types/index";
 
 const TIMEOUT_MS = 30000;
 const MAX_CONVERSATION_CHARS = 100_000;

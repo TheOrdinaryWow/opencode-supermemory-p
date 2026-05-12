@@ -1,6 +1,6 @@
 import { defineCommand } from "citty";
 
-import { clearCredentials } from "../../src/auth/credentials.js";
+import { clearCredentials } from "@/auth/credentials";
 
 export default defineCommand({
   meta: { name: "logout", description: "Clear stored credentials" },

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import type { AppError } from "../../src/shared/errors.js";
+import type { AppError } from "@/shared/errors";
 
 // =====================================================================
 // Background — what we are pinning
@@ -95,7 +95,7 @@ mock.module("supermemory", () => {
 
 
 // Dynamic import so both mocks are in effect before client.ts loads.
-let SupermemoryClient: typeof import("../../src/memory/client.ts").SupermemoryClient;
+let SupermemoryClient: typeof import("@/memory/client").SupermemoryClient;
 let previousApiKey: string | undefined;
 
 function expectErrorKind(error: AppError, kind: AppError["kind"], message: string): void {
@@ -106,7 +106,7 @@ function expectErrorKind(error: AppError, kind: AppError["kind"], message: strin
 beforeAll(async () => {
   previousApiKey = process.env.SUPERMEMORY_API_KEY;
   process.env.SUPERMEMORY_API_KEY = "sm_test_key";
-  const mod = await import("../../src/memory/client.ts");
+  const mod = await import("@/memory/client");
   SupermemoryClient = mod.SupermemoryClient;
 });
 

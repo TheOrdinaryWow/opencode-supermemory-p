@@ -110,7 +110,7 @@ const clientImpl: {
   deleteMemory: () => ({ success: true }),
 };
 
-let pluginInstance: Awaited<ReturnType<typeof import("../../src/index.ts").SupermemoryPlugin>>;
+let pluginInstance: Awaited<ReturnType<typeof import("@/index").SupermemoryPlugin>>;
 let toolDef: NonNullable<typeof pluginInstance.tool>["supermemory"];
 let baselineToolDef: { description: string; args: Record<string, unknown> };
 let MOCK_USER_TAG: string;
@@ -124,9 +124,9 @@ beforeAll(async () => {
   // Dynamic imports so all mock.module() calls above are in effect.
   previousApiKey = process.env.SUPERMEMORY_API_KEY;
   process.env.SUPERMEMORY_API_KEY = "sm_test_key";
-  const { SupermemoryPlugin } = await import("../../src/index.ts");
-  const clientMod = await import("../../src/memory/client.ts");
-  const tagsMod = await import("../../src/memory/tags.ts");
+  const { SupermemoryPlugin } = await import("@/index");
+  const clientMod = await import("@/memory/client");
+  const tagsMod = await import("@/memory/tags");
   const expectedTags = tagsMod.getTags("/test/project");
   MOCK_USER_TAG = expectedTags.user;
   MOCK_PROJECT_TAG = expectedTags.project;
@@ -207,7 +207,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Restore singleton — remove own-property shadows so other test files in
   // parallel sibling runs see the prototype methods again.
-  const clientMod = await import("../../src/memory/client.ts");
+  const clientMod = await import("@/memory/client");
   const singleton = clientMod.supermemoryClient as unknown as Record<string, unknown>;
   for (const name of ["addMemory", "searchMemories", "getProfile", "listMemories", "deleteMemory"] as const) {
     const original = savedOriginals[name];

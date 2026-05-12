@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
+import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir";
 
 // =====================================================================
 // Background — what we are pinning
@@ -51,7 +51,7 @@ import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
 // which is deterministic for our purposes.
 // Dynamic import after HOME is redirected. compaction.ts captures
 // `homedir()` at module-load time → MUST set HOME before importing.
-let createCompactionHook: typeof import("../../src/compaction/index.ts").createCompactionHook;
+let createCompactionHook: typeof import("@/compaction/index").createCompactionHook;
 let listMemoriesMock: ReturnType<typeof mock>;
 let addMemoryMock: ReturnType<typeof mock>;
 let originalListMemories: unknown;
@@ -64,8 +64,8 @@ beforeAll(async () => {
   ORIGINAL_HOME = process.env.HOME;
   process.env.HOME = TMP_HOME;
 
-  const compactionMod = await import("../../src/compaction/index.ts");
-  const clientMod = await import("../../src/memory/client.ts");
+  const compactionMod = await import("@/compaction/index");
+  const clientMod = await import("@/memory/client");
   createCompactionHook = compactionMod.createCompactionHook;
 
   // Mutate the singleton's methods directly. `supermemoryClient` is a
@@ -88,7 +88,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Restore singleton methods so other parallel-running tests that
   // happen to touch the singleton see the original prototype methods.
-  const clientMod = await import("../../src/memory/client.ts");
+  const clientMod = await import("@/memory/client");
   const sm = clientMod.supermemoryClient as unknown as Record<string, unknown>;
   if (originalListMemories !== undefined) sm.listMemories = originalListMemories;
   else delete sm.listMemories;

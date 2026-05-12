@@ -1,15 +1,15 @@
 import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 
-import { handleChatMessage } from "./chat/handler.js";
-import { type CompactionContext, createCompactionHook } from "./compaction/index.js";
-import { createModelLimitLookup } from "./compaction/model-limits.js";
-import { getConfig } from "./config/loader.js";
-import { handleEvent } from "./events/handler.js";
-import { supermemoryClient } from "./memory/client.js";
-import { getTags } from "./memory/tags.js";
-import { createSessionState } from "./session/state.js";
-import { defaultLogger, initLogger } from "./shared/logger.js";
-import { createSupermemoryTool } from "./tool/index.js";
+import { handleChatMessage } from "@/chat/handler";
+import { type CompactionContext, createCompactionHook } from "@/compaction/index";
+import { createModelLimitLookup } from "@/compaction/model-limits";
+import { getConfig } from "@/config/loader";
+import { handleEvent } from "@/events/handler";
+import { supermemoryClient } from "@/memory/client";
+import { getTags } from "@/memory/tags";
+import { createSessionState } from "@/session/state";
+import { defaultLogger, initLogger } from "@/shared/logger";
+import { createSupermemoryTool } from "@/tool/index";
 
 export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   const deps = createDeps(ctx);

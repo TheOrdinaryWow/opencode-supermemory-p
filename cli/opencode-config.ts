@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { stripJsoncComments } from "../src/shared/jsonc.js";
+import { stripJsoncComments } from "@/shared/jsonc";
 
 export const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
 const PLUGIN_NAME = "opencode-supermemory@latest";

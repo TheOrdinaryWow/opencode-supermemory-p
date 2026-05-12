@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
+import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");

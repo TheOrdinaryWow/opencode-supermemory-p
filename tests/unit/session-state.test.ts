@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { createSessionState } from "../../src/session/state.ts";
+import { createSessionState } from "@/session/state";
 
 describe("createSessionState", () => {
   it("starts empty — wasInjected returns false for any id", () => {

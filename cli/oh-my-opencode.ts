@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { findOpencodeConfig, OPENCODE_CONFIG_DIR } from "./opencode-config.js";
+import { findOpencodeConfig, OPENCODE_CONFIG_DIR } from "@cli/opencode-config";
 
 const OH_MY_OPENCODE_CONFIG = join(OPENCODE_CONFIG_DIR, "oh-my-opencode.json");
 const HOOK_NAME = "anthropic-context-window-limit-recovery";

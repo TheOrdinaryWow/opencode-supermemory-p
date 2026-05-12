@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { containsPrivateTag, isFullyPrivate, stripPrivateContent } from "../../src/memory/privacy.ts";
+import { containsPrivateTag, isFullyPrivate, stripPrivateContent } from "@/memory/privacy";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");

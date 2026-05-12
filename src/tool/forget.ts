@@ -1,4 +1,4 @@
-import type { ToolArgs, ToolDeps } from "./index.js";
+import type { ToolArgs, ToolDeps } from "@/tool/index";
 
 export async function executeForget(args: ToolArgs, deps: ToolDeps): Promise<string> {
   if (!args.memoryId) {

@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 
-import { loadCredentials } from "../../src/auth/credentials.js";
-import { startAuthFlow } from "../../src/auth/flow.js";
+import { loadCredentials } from "@/auth/credentials";
+import { startAuthFlow } from "@/auth/flow";
 
 export async function runLoginFlow(): Promise<number> {
   const existing = loadCredentials();
