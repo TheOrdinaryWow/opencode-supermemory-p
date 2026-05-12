@@ -1,7 +1,7 @@
 import Supermemory from "supermemory";
 
 import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
-import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.js";
+import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
 import { log } from "./logger.js";
 
 const TIMEOUT_MS = 30000;
