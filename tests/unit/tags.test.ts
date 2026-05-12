@@ -66,7 +66,7 @@ mock.module("node:child_process", () => {
   };
 });
 
-let tags: typeof import("../../src/services/tags.ts");
+let tags: typeof import("../../src/memory/tags.ts");
 
 // Save / restore env between tests so the process.env.USER fallback path
 // is deterministic regardless of the developer's machine.
@@ -74,7 +74,7 @@ let prevUser: string | undefined;
 let prevUsername: string | undefined;
 
 beforeAll(async () => {
-  tags = await import("../../src/services/tags.ts");
+  tags = await import("../../src/memory/tags.ts");
 });
 
 beforeEach(() => {

@@ -29,10 +29,10 @@ mock.module(CONFIG_ABS, () => ({
 }));
 
 // Dynamic import so the mock above is in effect.
-let formatContextForPrompt: typeof import("../../src/services/context.ts").formatContextForPrompt;
+let formatContextForPrompt: typeof import("../../src/memory/context.ts").formatContextForPrompt;
 
 beforeAll(async () => {
-  const mod = await import("../../src/services/context.ts");
+  const mod = await import("../../src/memory/context.ts");
   formatContextForPrompt = mod.formatContextForPrompt;
 });
 

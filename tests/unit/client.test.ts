@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 // =====================================================================
 // Background — what we are pinning
 //
-// `src/services/client.ts` re-exports the memory client. The
+// `src/memory/client.ts` implements the memory client. The
 // production implementation returns Result<T, AppError> for expected
 // SDK/config/network/auth failures while preserving the SDK call shapes.
 //
@@ -118,7 +118,7 @@ mock.module(CONFIG_ABS, () => ({
 }));
 
 // Dynamic import so both mocks are in effect before client.ts loads.
-let SupermemoryClient: typeof import("../../src/services/client.ts").SupermemoryClient;
+let SupermemoryClient: typeof import("../../src/memory/client.ts").SupermemoryClient;
 
 function expectErrorKind(error: AppError, kind: AppError["kind"], message: string): void {
   expect(error.kind).toBe(kind);
@@ -126,7 +126,7 @@ function expectErrorKind(error: AppError, kind: AppError["kind"], message: strin
 }
 
 beforeAll(async () => {
-  const mod = await import("../../src/services/client.ts");
+  const mod = await import("../../src/memory/client.ts");
   SupermemoryClient = mod.SupermemoryClient;
 });
 

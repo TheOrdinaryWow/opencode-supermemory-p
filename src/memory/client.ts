@@ -3,8 +3,8 @@ import Supermemory from "supermemory";
 import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
 import type { AppError } from "../shared/errors.js";
 import { err, ok, type Result } from "../shared/result.js";
+import { log } from "../shared/logger.js";
 import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
-import { log } from "../services/logger.js";
 
 const TIMEOUT_MS = 30000;
 const MAX_CONVERSATION_CHARS = 100_000;
@@ -238,4 +238,62 @@ export class SupermemoryClient {
   }
 }
 
-export const supermemoryClient = new SupermemoryClient();
+export const resultSupermemoryClient = new SupermemoryClient();
+
+function unwrapOrLegacyShape<T, F>(result: Result<T, AppError>, fallback: F): T | F {
+  return result.ok ? result.value : fallback;
+}
+
+type LegacyFailure<T = object> = { success: false; error: string } & T;
+
+export const supermemoryClient = {
+  async searchMemories(query: string, containerTag: string) {
+    const fallback: LegacyFailure<{ results: never[]; total: number; timing: number }> = {
+      success: false,
+      error: "Failed to search memories",
+      results: [],
+      total: 0,
+      timing: 0,
+    };
+    return unwrapOrLegacyShape(await resultSupermemoryClient.searchMemories(query, containerTag), fallback);
+  },
+  async getProfile(containerTag: string, query?: string) {
+    return unwrapOrLegacyShape(await resultSupermemoryClient.getProfile(containerTag, query), {
+      success: false as const,
+      error: "Failed to fetch profile",
+      profile: null,
+    });
+  },
+  async addMemory(content: string, containerTag: string, metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown }) {
+    return unwrapOrLegacyShape(await resultSupermemoryClient.addMemory(content, containerTag, metadata), {
+      success: false as const,
+      error: "Failed to add memory",
+    });
+  },
+  async deleteMemory(memoryId: string) {
+    return unwrapOrLegacyShape(await resultSupermemoryClient.deleteMemory(memoryId), {
+      success: false as const,
+      error: "Failed to delete memory",
+    });
+  },
+  async listMemories(containerTag: string, limit = 20) {
+    const fallback: LegacyFailure<{ memories: never[]; pagination: { currentPage: number; totalItems: number; totalPages: number } }> = {
+      success: false,
+      error: "Failed to list memories",
+      memories: [],
+      pagination: { currentPage: 1, totalItems: 0, totalPages: 0 },
+    };
+    return unwrapOrLegacyShape(await resultSupermemoryClient.listMemories(containerTag, limit), fallback);
+  },
+  async ingestConversation(
+    conversationId: string,
+    messages: ConversationMessage[],
+    containerTags: string[],
+    metadata?: Record<string, string | number | boolean>,
+  ) {
+    return unwrapOrLegacyShape(await resultSupermemoryClient.ingestConversation(conversationId, messages, containerTags, metadata), {
+      success: false as const,
+      error: "Failed to ingest conversation",
+    });
+  },
+};

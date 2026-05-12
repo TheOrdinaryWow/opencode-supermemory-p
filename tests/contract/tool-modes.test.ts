@@ -42,7 +42,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
 const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
-const LOGGER_ABS = join(REPO_ROOT, "src", "services", "logger.ts");
+const LOGGER_ABS = join(REPO_ROOT, "src", "shared", "logger.ts");
 
 // ---------------------------------------------------------------------
 // SDK module mock — bare-minimum surface so `new Supermemory({apiKey})`
@@ -97,6 +97,8 @@ mock.module(CONFIG_ABS, () => ({
 // ---------------------------------------------------------------------
 mock.module(LOGGER_ABS, () => ({
   log: () => undefined,
+  initLogger: () => undefined,
+  defaultLogger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
 }));
 
 // ---------------------------------------------------------------------
@@ -144,7 +146,7 @@ const savedOriginals: Record<string, unknown> = {};
 beforeAll(async () => {
   // Dynamic imports so all mock.module() calls above are in effect.
   const { SupermemoryPlugin } = await import("../../src/index.ts");
-  const clientMod = await import("../../src/services/client.ts");
+  const clientMod = await import("../../src/memory/client.ts");
   const singleton = clientMod.supermemoryClient as unknown as Record<string, unknown>;
 
   // Save prototype methods (if any own-properties already exist, save those instead).
@@ -222,7 +224,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Restore singleton — remove own-property shadows so other test files in
   // parallel sibling runs see the prototype methods again.
-  const clientMod = await import("../../src/services/client.ts");
+  const clientMod = await import("../../src/memory/client.ts");
   const singleton = clientMod.supermemoryClient as unknown as Record<string, unknown>;
   for (const name of ["addMemory", "searchMemories", "getProfile", "listMemories", "deleteMemory"] as const) {
     const original = savedOriginals[name];

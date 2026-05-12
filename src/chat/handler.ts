@@ -17,7 +17,7 @@ import type { Part } from "@opencode-ai/sdk";
 import type { ProfileResponse } from "supermemory/resources";
 
 import type { SupermemoryConfig } from "../config/schema.js";
-import { formatContextForPrompt } from "../services/context.js";
+import { formatContextForPrompt } from "../memory/context.js";
 import type { SessionState } from "../session/state.js";
 
 import { detectMemoryKeyword } from "./keywords.js";

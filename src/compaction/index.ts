@@ -1,5 +1,5 @@
 import { CONFIG } from "../config.js";
-import { supermemoryClient } from "../services/client.js";
+import { supermemoryClient } from "../memory/client.js";
 import { defaultLogger as logger } from "../shared/logger.js";
 import { findNearestMessageWithFields } from "./finder.js";
 import { getMessageDir, injectHookMessage } from "./message-store.js";
