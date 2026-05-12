@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { loadCredentials } from "../services/auth.js";
+import { loadCredentials } from "../auth/credentials.js";
 import { readJsoncFile } from "../shared/fs-utils.js";
 import { DEFAULT_KEYWORD_PATTERNS } from "./defaults.js";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "./schema.js";

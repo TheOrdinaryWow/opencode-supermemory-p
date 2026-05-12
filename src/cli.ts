@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { Interface } from "node:readline";
 import * as readline from "node:readline";
 
-import { clearCredentials, loadCredentials, startAuthFlow } from "./services/auth.js";
+import { clearCredentials, loadCredentials } from "./auth/credentials.js";
+import { startAuthFlow } from "./auth/flow.js";
 import { stripJsoncComments } from "./shared/jsonc.js";
 
 const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
