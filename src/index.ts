@@ -22,6 +22,8 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   };
 };
 
+export default SupermemoryPlugin;
+
 function createDeps(ctx: PluginInput) {
   initLogger();
   const config = getConfig();

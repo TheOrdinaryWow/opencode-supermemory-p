@@ -9,7 +9,8 @@
     "opencode-supermemory": "./dist/cli.js"
   },
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
+    "build": "tsdown",
+    "build:bun": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "check": "biome check --write",
@@ -38,6 +39,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
     "@types/bun": "latest",
+    "tsdown": "^0.22.0",
     "typescript": "^5.7.3"
   },
   "opencode": {
