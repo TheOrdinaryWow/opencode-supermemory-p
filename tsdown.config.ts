@@ -1,6 +1,7 @@
 import { defineConfig } from "tsdown";
 
 const external = ["@opencode-ai/plugin", "supermemory", "citty"];
+const cliRuntimeDeps = [/^(citty|fs-extra|jsonc-parser|zod)(\/.*)?$/];
 const outExtensions = () => ({ js: ".js", dts: ".d.ts" });
 const defaultExportSyntaxPlugin = {
   name: "default-export-syntax",
@@ -35,7 +36,9 @@ export default defineConfig([
     dts: false,
     outExtensions,
     deps: {
-      neverBundle: external,
+      neverBundle: ["@opencode-ai/plugin", "supermemory"],
+      alwaysBundle: cliRuntimeDeps,
+      onlyBundle: false,
     },
   },
 ]);

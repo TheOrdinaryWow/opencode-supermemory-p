@@ -1,4 +1,4 @@
-import { parse, printParseErrorCode, stripComments, type ParseError } from "jsonc-parser";
+import { parse, printParseErrorCode, stripComments, type ParseError } from "jsonc-parser/lib/esm/main.js";
 
 export function stripJsoncComments(content: string): string {
   return stripComments(content).replace(/,\s*([}\]])/g, "$1");
