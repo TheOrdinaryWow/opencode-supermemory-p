@@ -1,0 +1,6 @@
+{
+  "apiKey": "sm_test_mixed_\"quotes\"_0005",
+  "filterPrompt": "User said \"hello\", then said \\\"goodbye\\\" via // not-a-comment and /* still-not-a-comment */.",
+  "keywordPatterns": ["url:\\s*https?://[^\\s]+", "path:\\s*/[^\\s]+", "comment\\s*//.*", "block\\s*/\\*.*\\*/"],
+  "containerTagPrefix": "omsm-mixed-\"escapes\""
+}

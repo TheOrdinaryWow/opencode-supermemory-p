@@ -1,0 +1,14 @@
+{
+  "apiKey": "sm_test_maximal_0002",
+  "similarityThreshold": 0.72,
+  "maxMemories": 8,
+  "maxProjectMemories": 12,
+  "maxProfileItems": 6,
+  "injectProfile": true,
+  "containerTagPrefix": "omsm-test",
+  "userContainerTag": "team-platform",
+  "projectContainerTag": "opencode-supermemory-fixture",
+  "filterPrompt": "Test filter prompt. Remember user preferences only.",
+  "keywordPatterns": ["log\\s+this", "write\\s+down"],
+  "compactionThreshold": 0.75
+}

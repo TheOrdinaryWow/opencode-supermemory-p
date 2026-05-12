@@ -1,0 +1,6 @@
+{
+  "apiKey": "sm_test_malformed_0006",
+  "similarityThreshold": 0.7,
+  "maxMemories": 5
+  // intentionally unclosed: missing comma above and missing closing brace below
+  "injectProfile": true

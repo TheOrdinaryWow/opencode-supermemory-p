@@ -1,0 +1,11 @@
+{
+  "apiKey": "sm_test_trailing_commas_0004",
+  "similarityThreshold": 0.6,
+  "maxMemories": 5,
+  "keywordPatterns": [
+    "remember",
+    "save\\s+this",
+    "note\\s+this",
+  ],
+  "compactionThreshold": 0.8,
+}
