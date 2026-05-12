@@ -1,0 +1,220 @@
+{
+  "description": "Manage and query the Supermemory persistent memory system. Use 'search' to find relevant memories, 'add' to store new knowledge, 'profile' to view user profile, 'list' to see recent memories, 'forget' to remove a memory.",
+  "args": {
+    "mode": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "enum",
+            "entries": {
+              "add": "add",
+              "search": "search",
+              "profile": "profile",
+              "list": "list",
+              "forget": "forget",
+              "help": "help"
+            }
+          },
+          "type": "enum",
+          "enum": {
+            "add": "add",
+            "search": "search",
+            "profile": "profile",
+            "list": "list",
+            "forget": "forget",
+            "help": "help"
+          },
+          "options": [
+            "add",
+            "search",
+            "profile",
+            "list",
+            "forget",
+            "help"
+          ]
+        },
+        "type": "optional"
+      }
+    },
+    "content": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "string"
+          },
+          "type": "string",
+          "format": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "type": "optional"
+    },
+    "query": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "string"
+          },
+          "type": "string",
+          "format": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "type": "optional"
+    },
+    "type": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "enum",
+            "entries": {
+              "project-config": "project-config",
+              "architecture": "architecture",
+              "error-solution": "error-solution",
+              "preference": "preference",
+              "learned-pattern": "learned-pattern",
+              "conversation": "conversation"
+            }
+          },
+          "type": "enum",
+          "enum": {
+            "project-config": "project-config",
+            "architecture": "architecture",
+            "error-solution": "error-solution",
+            "preference": "preference",
+            "learned-pattern": "learned-pattern",
+            "conversation": "conversation"
+          },
+          "options": [
+            "project-config",
+            "architecture",
+            "error-solution",
+            "preference",
+            "learned-pattern",
+            "conversation"
+          ]
+        },
+        "type": "optional"
+      }
+    },
+    "scope": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "enum",
+            "entries": {
+              "user": "user",
+              "project": "project"
+            }
+          },
+          "type": "enum",
+          "enum": {
+            "user": "user",
+            "project": "project"
+          },
+          "options": [
+            "user",
+            "project"
+          ]
+        },
+        "type": "optional"
+      }
+    },
+    "memoryId": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "string"
+          },
+          "type": "string",
+          "format": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "type": "optional"
+    },
+    "limit": {
+      "~standard": {
+        "vendor": "zod",
+        "version": 1
+      },
+      "def": {
+        "type": "optional",
+        "innerType": {
+          "~standard": {
+            "vendor": "zod",
+            "version": 1
+          },
+          "def": {
+            "type": "number",
+            "checks": []
+          },
+          "type": "number",
+          "minValue": null,
+          "maxValue": null,
+          "isInt": false,
+          "isFinite": true,
+          "format": null
+        }
+      },
+      "type": "optional"
+    }
+  }
+}

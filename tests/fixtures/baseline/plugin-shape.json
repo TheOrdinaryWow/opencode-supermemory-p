@@ -1,0 +1,13 @@
+{
+  "defaultKeys": [
+    "chat.message",
+    "tool",
+    "event"
+  ],
+  "defaultType": "object",
+  "hookTypes": {
+    "chat.message": "function",
+    "tool": "object",
+    "event": "function"
+  }
+}

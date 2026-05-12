@@ -1,0 +1,16 @@
+{
+  "bin": {
+    "opencode-supermemory": "./dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "type": "module",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.162",
+    "supermemory": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@types/bun": "latest",
+    "typescript": "^5.7.3"
+  }
+}

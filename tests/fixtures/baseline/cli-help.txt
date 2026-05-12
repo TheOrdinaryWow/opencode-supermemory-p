@@ -1,0 +1,16 @@
+
+opencode-supermemory - Persistent memory for OpenCode agents
+
+Commands:
+  install    Install and configure the plugin
+    --no-tui                     Non-interactive mode (for LLM agents)
+    --disable-context-recovery   Disable Oh My OpenCode's context hook
+  login      Authenticate with Supermemory (opens browser)
+  logout     Clear stored credentials
+
+Examples:
+  bunx opencode-supermemory@latest install
+  bunx opencode-supermemory@latest login
+  bunx opencode-supermemory@latest logout
+
+EXIT=0

@@ -1,0 +1,7 @@
+Opening browser for authentication...
+If it doesn't open, visit: https://app.supermemory.ai/auth/connect?callback=http%3A%2F%2Flocalhost%3A19877%2Fcallback&client=opencode
+
+✓ Successfully authenticated with Supermemory!
+Restart OpenCode to activate.
+
+EXIT=0
