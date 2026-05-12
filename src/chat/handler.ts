@@ -18,6 +18,7 @@ import type { ProfileResponse } from "supermemory/resources";
 
 import type { SupermemoryConfig } from "../config/schema.js";
 import { formatContextForPrompt } from "../services/context.js";
+import type { SessionState } from "../session/state.js";
 
 import { detectMemoryKeyword } from "./keywords.js";
 import { MEMORY_NUDGE_MESSAGE } from "./nudge.js";
@@ -62,7 +63,7 @@ export interface ChatHandlerDeps {
   client: ChatClientLike;
   config: Pick<SupermemoryConfig, "keywordPatterns" | "maxProjectMemories">;
   tags: { user: string; project: string };
-  injectedSessions: Set<string>;
+  injectedSessions: Pick<SessionState, "markInjected" | "wasInjected">;
   log: (message: string, data?: unknown) => void;
   isConfigured: () => boolean;
 }
@@ -125,10 +126,10 @@ export async function handleChatMessage(
       output.parts.push(nudgePart);
     }
 
-    const isFirstMessage = !deps.injectedSessions.has(input.sessionID);
+    const isFirstMessage = !deps.injectedSessions.wasInjected(input.sessionID);
 
     if (isFirstMessage) {
-      deps.injectedSessions.add(input.sessionID);
+      deps.injectedSessions.markInjected(input.sessionID);
 
       const [profileResult, userMemoriesResult, projectMemoriesListResult] = await Promise.all([
         deps.client.getProfile(deps.tags.user, userMessage),

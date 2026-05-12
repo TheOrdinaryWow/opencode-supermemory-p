@@ -6,6 +6,7 @@ import type { ChatClientLike, ChatHandlerDeps } from "../../src/chat/handler.ts"
 import { handleChatMessage } from "../../src/chat/handler.ts";
 import { detectMemoryKeyword } from "../../src/chat/keywords.ts";
 import { MEMORY_NUDGE_MESSAGE, removeCodeBlocks } from "../../src/chat/nudge.ts";
+import { createSessionState } from "../../src/session/state.ts";
 
 // ---------------------------------------------------------------------------
 // Test-only helpers
@@ -58,7 +59,7 @@ function createDeps(overrides: Partial<ChatHandlerDeps> = {}): ChatHandlerDeps &
       ...((overrides.config as object) ?? {}),
     } as ChatHandlerDeps["config"],
     tags: overrides.tags ?? { user: "u-tag", project: "p-tag" },
-    injectedSessions: overrides.injectedSessions ?? new Set<string>(),
+    injectedSessions: overrides.injectedSessions ?? createSessionState(),
     log: (msg, data) => logs.push({ msg, data }),
     isConfigured: overrides.isConfigured ?? (() => true),
     logs,
@@ -135,7 +136,7 @@ describe("handleChatMessage", () => {
     const output = emptyOutput([textPart("hi")]);
     await handleChatMessage({ sessionID: "ses_1" }, output, deps);
 
-    expect(deps.injectedSessions.has("ses_1")).toBe(true);
+    expect(deps.injectedSessions.wasInjected("ses_1")).toBe(true);
     expect(output.parts).toHaveLength(2);
     const first = output.parts[0]!;
     expect(first.type).toBe("text");
@@ -147,7 +148,7 @@ describe("handleChatMessage", () => {
 
   it("does NOT re-inject context on a subsequent message in the same session", async () => {
     const deps = createDeps();
-    deps.injectedSessions.add("ses_1");
+    deps.injectedSessions.markInjected("ses_1");
 
     const output = emptyOutput([textPart("second message")]);
     await handleChatMessage({ sessionID: "ses_1" }, output, deps);
@@ -160,7 +161,7 @@ describe("handleChatMessage", () => {
 
   it("appends the nudge part when a memory keyword is detected", async () => {
     const deps = createDeps();
-    deps.injectedSessions.add("ses_1"); // skip context-injection branch
+    deps.injectedSessions.markInjected("ses_1"); // skip context-injection branch
 
     const output = emptyOutput([textPart("please remember that we use bun")]);
     await handleChatMessage({ sessionID: "ses_1" }, output, deps);
@@ -179,7 +180,7 @@ describe("handleChatMessage", () => {
     await handleChatMessage({ sessionID: "ses_x" }, output, deps);
 
     expect(output.parts).toHaveLength(1);
-    expect(deps.injectedSessions.has("ses_x")).toBe(false);
+    expect(deps.injectedSessions.wasInjected("ses_x")).toBe(false);
     expect(deps.client.calls.searchMemories).toHaveLength(0);
     expect(deps.logs).toHaveLength(0);
   });

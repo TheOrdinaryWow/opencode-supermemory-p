@@ -2,16 +2,18 @@ import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 
 import { handleChatMessage } from "./chat/handler.js";
 import { CONFIG, isConfigured } from "./config.js";
+import { handleEvent } from "./events/handler.js";
 import { supermemoryClient } from "./services/client.js";
 import { type CompactionContext, createCompactionHook } from "./services/compaction.js";
 import { log } from "./services/logger.js";
 import { getTags } from "./services/tags.js";
+import { createSessionState } from "./session/state.js";
 import { createSupermemoryTool } from "./tool/index.js";
 
 export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   const { directory } = ctx;
   const tags = getTags(directory);
-  const injectedSessions = new Set<string>();
+  const sessionState = createSessionState();
   log("Plugin init", { directory, tags, configured: isConfigured() });
 
   if (!isConfigured()) {
@@ -59,7 +61,7 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
         client: supermemoryClient,
         config: CONFIG,
         tags,
-        injectedSessions,
+        injectedSessions: sessionState,
         log,
         isConfigured,
       }),
@@ -68,10 +70,7 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
       supermemory: createSupermemoryTool({ tags, client: supermemoryClient }),
     },
 
-    event: async (input: { event: { type: string; properties?: unknown } }) => {
-      if (compactionHook) {
-        await compactionHook.event(input);
-      }
-    },
+    event: (input: { event: { type: string; properties?: unknown } }) =>
+      handleEvent(input, { compactionHook }),
   };
 };
