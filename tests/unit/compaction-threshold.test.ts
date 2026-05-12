@@ -45,8 +45,8 @@ import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
 //     client.test.ts does).
 // =====================================================================
 
-// Note: we intentionally do NOT call mock.module on src/config.ts here.
-// config.ts loads with whatever HOME we set below — since no JSONC file
+// Note: we intentionally use the real config loader here.
+// It loads with whatever HOME we set below — since no JSONC file
 // exists under that tmpdir, the real config falls through to DEFAULTS,
 // which is deterministic for our purposes.
 // Dynamic import after HOME is redirected. compaction.ts captures

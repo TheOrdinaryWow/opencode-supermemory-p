@@ -1,6 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import type { AppError } from "../../src/shared/errors.js";
 
@@ -26,9 +24,6 @@ import type { AppError } from "../../src/shared/errors.js";
 // passed to `memories.add` from inside `ingestConversation`.
 // =====================================================================
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, "..", "..");
-const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
 
 // Mutable per-test SDK behavior. Tests assign onto this before calling
 // the client; the mocked Supermemory class reads from it on every call.
@@ -98,28 +93,10 @@ mock.module("supermemory", () => {
   };
 });
 
-// Mock config so client.ts sees deterministic CONFIG values and a
-// non-empty API key (isConfigured() => true). Without this, the
-// `isConfigured` check at line 36 of client.ts would short-circuit
-// and throw "SUPERMEMORY_API_KEY not set".
-mock.module(CONFIG_ABS, () => ({
-  CONFIG: {
-    similarityThreshold: 0.6,
-    maxMemories: 5,
-    maxProjectMemories: 10,
-    maxProfileItems: 5,
-    injectProfile: true,
-    containerTagPrefix: "opencode",
-    filterPrompt: "test-filter-prompt",
-    keywordPatterns: [],
-    compactionThreshold: 0.8,
-  },
-  SUPERMEMORY_API_KEY: "sm_test_key",
-  isConfigured: () => true,
-}));
 
 // Dynamic import so both mocks are in effect before client.ts loads.
 let SupermemoryClient: typeof import("../../src/memory/client.ts").SupermemoryClient;
+let previousApiKey: string | undefined;
 
 function expectErrorKind(error: AppError, kind: AppError["kind"], message: string): void {
   expect(error.kind).toBe(kind);
@@ -127,8 +104,15 @@ function expectErrorKind(error: AppError, kind: AppError["kind"], message: strin
 }
 
 beforeAll(async () => {
+  previousApiKey = process.env.SUPERMEMORY_API_KEY;
+  process.env.SUPERMEMORY_API_KEY = "sm_test_key";
   const mod = await import("../../src/memory/client.ts");
   SupermemoryClient = mod.SupermemoryClient;
+});
+
+afterAll(() => {
+  if (previousApiKey === undefined) delete process.env.SUPERMEMORY_API_KEY;
+  else process.env.SUPERMEMORY_API_KEY = previousApiKey;
 });
 
 function resetSdkState(): void {
@@ -155,7 +139,7 @@ beforeEach(() => {
 // =====================================================================
 
 describe("SupermemoryClient.searchMemories", () => {
-  it("success: returns { success: true, ...sdkResult } and forwards CONFIG into the SDK call", async () => {
+  it("success: returns { success: true, ...sdkResult } and forwards config into the SDK call", async () => {
     sdkState.searchMemories.impl = () => ({
       results: [{ id: "mem_1", content: "hello", similarity: 0.9 }],
       total: 1,
@@ -170,7 +154,7 @@ describe("SupermemoryClient.searchMemories", () => {
     expect(out.value.total).toBe(1);
     expect(out.value.timing).toBe(12);
 
-    // SDK call shape pinned: searchMode "hybrid", threshold/limit from CONFIG.
+    // SDK call shape pinned: searchMode "hybrid", threshold/limit from config.
     expect(sdkState.searchMemories.calls).toHaveLength(1);
     expect(sdkState.searchMemories.calls[0]?.args[0]).toEqual({
       q: "q",

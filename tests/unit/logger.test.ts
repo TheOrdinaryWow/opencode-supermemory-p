@@ -164,21 +164,3 @@ describe("initLogger: explicit session header", () => {
     expect(readFileSync(logPath, "utf-8")).toMatch(/^\n--- Session started: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z ---\n$/);
   });
 });
-
-describe("log(): legacy back-compat shim", () => {
-  const tmp = useTmpDir("logger-legacy");
-
-  it("writes at INFO level via defaultLogger", () => {
-    const logPath = join(tmp, "legacy.log");
-    const script = `
-      const m = await import(${JSON.stringify(LOGGER_MODULE_ABS)});
-      m.log("legacy-msg", { k: 1 });
-    `;
-    const { exitCode } = spawnScript(script, {
-      HOME: tmp,
-      OPENCODE_SUPERMEMORY_LOG: logPath,
-    });
-    expect(exitCode).toBe(0);
-    expect(readFileSync(logPath, "utf-8")).toMatch(/\[INFO\] legacy-msg \{"k":1\}/);
-  });
-});

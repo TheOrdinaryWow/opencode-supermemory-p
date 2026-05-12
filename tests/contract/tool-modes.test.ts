@@ -26,10 +26,10 @@ import { fileURLToPath } from "node:url";
 //
 //   - Mock the `supermemory` SDK module so the real SupermemoryClient
 //     can instantiate without going to the network.
-//   - Mock `src/config.ts` so `isConfigured() === true` and CONFIG has
-//     deterministic values + explicit container-tag overrides
+//   - Mock the config loader so `apiKey` is set and config has deterministic
+//     values + explicit container-tag overrides
 //     (avoids depending on `git config user.email`).
-//   - Mock `src/services/logger.ts` to a no-op so tests do not write
+//   - Mock `src/shared/logger.ts` to a no-op so tests do not write
 //     to `~/.opencode-supermemory.log`.
 //   - After `SupermemoryPlugin(ctx)` returns, install per-test method
 //     shadows on the `supermemoryClient` singleton instance. These
@@ -41,7 +41,6 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
-const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
 const LOGGER_ABS = join(REPO_ROOT, "src", "shared", "logger.ts");
 
 // ---------------------------------------------------------------------
@@ -66,37 +65,12 @@ mock.module("supermemory", () => ({
 }));
 
 // ---------------------------------------------------------------------
-// Config mock — isConfigured() must be true so the plugin reaches the
-// switch statement. userContainerTag/projectContainerTag overrides
-// pin tag values without invoking `git config user.email`.
-// ---------------------------------------------------------------------
-const MOCK_USER_TAG = "opencode_user_TEST";
-const MOCK_PROJECT_TAG = "opencode_project_TEST";
-
-mock.module(CONFIG_ABS, () => ({
-  CONFIG: {
-    similarityThreshold: 0.6,
-    maxMemories: 5,
-    maxProjectMemories: 10,
-    maxProfileItems: 5,
-    injectProfile: true,
-    containerTagPrefix: "opencode",
-    userContainerTag: MOCK_USER_TAG,
-    projectContainerTag: MOCK_PROJECT_TAG,
-    filterPrompt: "test-filter-prompt",
-    keywordPatterns: [],
-    compactionThreshold: 0.8,
-  },
-  SUPERMEMORY_API_KEY: "sm_test_key",
-  isConfigured: () => true,
-}));
 
 // ---------------------------------------------------------------------
 // Logger mock — avoid writing to ~/.opencode-supermemory.log during
 // tests (the module-level appendFileSync call is the loud one).
 // ---------------------------------------------------------------------
 mock.module(LOGGER_ABS, () => ({
-  log: () => undefined,
   initLogger: () => undefined,
   defaultLogger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
 }));
@@ -139,14 +113,23 @@ const clientImpl: {
 let pluginInstance: Awaited<ReturnType<typeof import("../../src/index.ts").SupermemoryPlugin>>;
 let toolDef: NonNullable<typeof pluginInstance.tool>["supermemory"];
 let baselineToolDef: { description: string; args: Record<string, unknown> };
+let MOCK_USER_TAG: string;
+let MOCK_PROJECT_TAG: string;
+let previousApiKey: string | undefined;
 
 // Saved originals — used by afterAll to restore the singleton instance.
 const savedOriginals: Record<string, unknown> = {};
 
 beforeAll(async () => {
   // Dynamic imports so all mock.module() calls above are in effect.
+  previousApiKey = process.env.SUPERMEMORY_API_KEY;
+  process.env.SUPERMEMORY_API_KEY = "sm_test_key";
   const { SupermemoryPlugin } = await import("../../src/index.ts");
   const clientMod = await import("../../src/memory/client.ts");
+  const tagsMod = await import("../../src/memory/tags.ts");
+  const expectedTags = tagsMod.getTags("/test/project");
+  MOCK_USER_TAG = expectedTags.user;
+  MOCK_PROJECT_TAG = expectedTags.project;
   const singleton = clientMod.supermemoryClient as unknown as Record<string, unknown>;
 
   // Save prototype methods (if any own-properties already exist, save those instead).
@@ -238,6 +221,8 @@ afterAll(async () => {
       });
     }
   }
+  if (previousApiKey === undefined) delete process.env.SUPERMEMORY_API_KEY;
+  else process.env.SUPERMEMORY_API_KEY = previousApiKey;
 });
 
 beforeEach(() => {

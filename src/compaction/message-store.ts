@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { ensureDir } from "../shared/fs-utils.js";
-import { log } from "../shared/logger.js";
+import { defaultLogger } from "../shared/logger.js";
 import { findNearestMessageWithFields } from "./finder.js";
 
 /** On-disk roots captured at module-load time so tests can override $HOME first. */
@@ -60,7 +60,7 @@ export interface InjectOriginalMessage {
  */
 export function injectHookMessage(sessionID: string, hookContent: string, originalMessage: InjectOriginalMessage): boolean {
   if (!hookContent || hookContent.trim().length === 0) {
-    log("[compaction] attempted to inject empty content, skipping");
+    defaultLogger.info("[compaction] attempted to inject empty content, skipping");
     return false;
   }
 
@@ -104,10 +104,10 @@ export function injectHookMessage(sessionID: string, hookContent: string, origin
     const partDir = join(PART_STORAGE, messageID);
     ensureDir(partDir);
     writeFileSync(join(partDir, `${partID}.json`), JSON.stringify(textPart, null, 2));
-    log("[compaction] hook message injected", { sessionID, messageID });
+    defaultLogger.info("[compaction] hook message injected", { sessionID, messageID });
     return true;
   } catch (err) {
-    log("[compaction] failed to inject hook message", { error: String(err) });
+    defaultLogger.info("[compaction] failed to inject hook message", { error: String(err) });
     return false;
   }
 }

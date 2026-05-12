@@ -7,25 +7,23 @@ import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
-const CONFIG_SRC = join(REPO_ROOT, "src", "config.ts");
+const CONFIG_LOADER_SRC = join(REPO_ROOT, "src", "config", "loader.ts");
 const FIXTURE_DIR = join(REPO_ROOT, "tests", "fixtures", "configs");
 
 // =====================================================================
 // Background — why a subprocess?
 //
-// src/config.ts is "eager": both `SUPERMEMORY_API_KEY` and `CONFIG` are
-// computed at module-evaluation time. Because Bun caches ESM modules
-// per absolute path, re-importing config.ts in-process always returns
-// the FIRST evaluation. To exercise different fileConfig / env-var /
-// credentials inputs we shell out to `bun -e` once per scenario, each
+// config/loader caches the first resolved config returned by getConfig(). To
+// exercise different fileConfig / env-var / credentials inputs we shell out
+// to `bun -e` once per scenario, each
 // with its own HOME (so the OS homedir() lookup is sandboxed) and its
 // own SUPERMEMORY_API_KEY env. This keeps the assertions against the
-// REAL src/config.ts code (no in-process mocking of node:fs / auth).
+// REAL src/config/loader.ts code (no in-process mocking of node:fs / auth).
 // =====================================================================
 
 interface ConfigEvalResult {
-  SUPERMEMORY_API_KEY: string | null;
-  CONFIG: {
+  config: {
+    apiKey?: string | null;
     similarityThreshold: number;
     maxMemories: number;
     maxProjectMemories: number;
@@ -75,11 +73,11 @@ async function evalConfig(opts: EvalOpts = {}): Promise<ConfigEvalResult> {
     }
 
     const script = `
-      const mod = await import(${JSON.stringify(CONFIG_SRC)});
+      const mod = await import(${JSON.stringify(CONFIG_LOADER_SRC)});
+      const config = mod.getConfig();
       process.stdout.write(JSON.stringify({
-        SUPERMEMORY_API_KEY: mod.SUPERMEMORY_API_KEY ?? null,
-        CONFIG: mod.CONFIG,
-        isConfigured: mod.isConfigured(),
+        config,
+        isConfigured: !!config.apiKey,
       }));
     `;
 
@@ -104,7 +102,7 @@ function readFixture(name: string): string {
 }
 
 // =====================================================================
-// Fixtures — locking shape of fileConfig => CONFIG mapping
+// Fixtures — locking shape of fileConfig => resolved config mapping
 // =====================================================================
 
 describe("loadConfig — fixture round-trips", () => {
@@ -112,35 +110,35 @@ describe("loadConfig — fixture round-trips", () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("minimal.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_test_minimal_0001");
+    expect(res.config.apiKey).toBe("sm_test_minimal_0001");
     expect(res.isConfigured).toBe(true);
-    // Pins the documented DEFAULTS (src/config.ts §DEFAULTS).
-    expect(res.CONFIG.similarityThreshold).toBe(0.6);
-    expect(res.CONFIG.maxMemories).toBe(5);
-    expect(res.CONFIG.maxProjectMemories).toBe(10);
-    expect(res.CONFIG.maxProfileItems).toBe(5);
-    expect(res.CONFIG.injectProfile).toBe(true);
-    expect(res.CONFIG.containerTagPrefix).toBe("opencode");
-    expect(res.CONFIG.compactionThreshold).toBe(0.8);
+    // Pins the documented DEFAULTS.
+    expect(res.config.similarityThreshold).toBe(0.6);
+    expect(res.config.maxMemories).toBe(5);
+    expect(res.config.maxProjectMemories).toBe(10);
+    expect(res.config.maxProfileItems).toBe(5);
+    expect(res.config.injectProfile).toBe(true);
+    expect(res.config.containerTagPrefix).toBe("opencode");
+    expect(res.config.compactionThreshold).toBe(0.8);
   });
 
   it("maximal.jsonc: every field flows through verbatim, including custom container tags", async () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("maximal.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_test_maximal_0002");
-    expect(res.CONFIG.similarityThreshold).toBe(0.72);
-    expect(res.CONFIG.maxMemories).toBe(8);
-    expect(res.CONFIG.maxProjectMemories).toBe(12);
-    expect(res.CONFIG.maxProfileItems).toBe(6);
-    expect(res.CONFIG.injectProfile).toBe(true);
-    expect(res.CONFIG.containerTagPrefix).toBe("omsm-test");
-    expect(res.CONFIG.userContainerTag).toBe("team-platform");
-    expect(res.CONFIG.projectContainerTag).toBe("opencode-supermemory-fixture");
-    expect(res.CONFIG.filterPrompt).toBe("Test filter prompt. Remember user preferences only.");
-    expect(res.CONFIG.compactionThreshold).toBe(0.75);
+    expect(res.config.apiKey).toBe("sm_test_maximal_0002");
+    expect(res.config.similarityThreshold).toBe(0.72);
+    expect(res.config.maxMemories).toBe(8);
+    expect(res.config.maxProjectMemories).toBe(12);
+    expect(res.config.maxProfileItems).toBe(6);
+    expect(res.config.injectProfile).toBe(true);
+    expect(res.config.containerTagPrefix).toBe("omsm-test");
+    expect(res.config.userContainerTag).toBe("team-platform");
+    expect(res.config.projectContainerTag).toBe("opencode-supermemory-fixture");
+    expect(res.config.filterPrompt).toBe("Test filter prompt. Remember user preferences only.");
+    expect(res.config.compactionThreshold).toBe(0.75);
     // User-supplied patterns are MERGED with DEFAULT_KEYWORD_PATTERNS — not replaced.
-    expect(res.CONFIG.keywordPatterns).toEqual([
+    expect(res.config.keywordPatterns).toEqual([
       "remember",
       "memorize",
       "save\\s+this",
@@ -166,56 +164,57 @@ describe("loadConfig — fixture round-trips", () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("with-comments.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_test_with_comments_0003");
-    expect(res.CONFIG.similarityThreshold).toBe(0.65);
-    expect(res.CONFIG.containerTagPrefix).toBe("omsm");
+    expect(res.config.apiKey).toBe("sm_test_with_comments_0003");
+    expect(res.config.similarityThreshold).toBe(0.65);
+    expect(res.config.containerTagPrefix).toBe("omsm");
   });
 
   it("with-trailing-commas.jsonc: trailing commas before } and ] are tolerated", async () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("with-trailing-commas.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_test_trailing_commas_0004");
+    expect(res.config.apiKey).toBe("sm_test_trailing_commas_0004");
     // User patterns merged after DEFAULT_KEYWORD_PATTERNS; duplicates are NOT deduped today.
     // Pins current behavior: "remember", "save\\s+this", "note\\s+this" appear twice each.
-    expect(res.CONFIG.keywordPatterns.filter((p) => p === "remember").length).toBe(2);
-    expect(res.CONFIG.keywordPatterns.filter((p) => p === "save\\s+this").length).toBe(2);
+    expect(res.config.keywordPatterns.filter((p) => p === "remember").length).toBe(2);
+    expect(res.config.keywordPatterns.filter((p) => p === "save\\s+this").length).toBe(2);
   });
 
   it("mixed-quotes.jsonc: escaped quotes, URLs, and string-internal // remain intact", async () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("mixed-quotes.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe('sm_test_mixed_"quotes"_0005');
-    expect(res.CONFIG.filterPrompt).toContain("// not-a-comment");
-    expect(res.CONFIG.filterPrompt).toContain("/* still-not-a-comment */");
-    expect(res.CONFIG.containerTagPrefix).toBe('omsm-mixed-"escapes"');
+    expect(res.config.apiKey).toBe('sm_test_mixed_"quotes"_0005');
+    expect(res.config.filterPrompt).toContain("// not-a-comment");
+    expect(res.config.filterPrompt).toContain("/* still-not-a-comment */");
+    expect(res.config.containerTagPrefix).toBe('omsm-mixed-"escapes"');
     // Every user pattern is a valid regex, so all of them are appended.
-    expect(res.CONFIG.keywordPatterns).toContain("url:\\s*https?://[^\\s]+");
-    expect(res.CONFIG.keywordPatterns).toContain("path:\\s*/[^\\s]+");
+    expect(res.config.keywordPatterns).toContain("url:\\s*https?://[^\\s]+");
+    expect(res.config.keywordPatterns).toContain("path:\\s*/[^\\s]+");
   });
 
   it("malformed.jsonc: loadConfig swallows the JSON.parse error and falls through to {} -> DEFAULTS", async () => {
     // Locks current behavior: the try/catch in loadConfig() makes invalid
-    // JSONC silently equivalent to a missing file. Every CONFIG field is
-    // the DEFAULTS value; SUPERMEMORY_API_KEY is null (no env, no creds).
+    // JSONC silently equivalent to a missing file. Every config field is
+    // the DEFAULTS value; apiKey is absent (no env, no creds).
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: readFixture("malformed.jsonc") },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBeNull();
+    expect(res.config.apiKey ?? null).toBeNull();
     expect(res.isConfigured).toBe(false);
-    expect(res.CONFIG.similarityThreshold).toBe(0.6);
-    expect(res.CONFIG.maxMemories).toBe(5);
-    expect(res.CONFIG.injectProfile).toBe(true);
-    expect(res.CONFIG.containerTagPrefix).toBe("opencode");
-    expect(res.CONFIG.compactionThreshold).toBe(0.8);
+    expect(res.config.similarityThreshold).toBe(0.6);
+    expect(res.config.maxMemories).toBe(5);
+    expect(res.config.injectProfile).toBe(true);
+    expect(res.config.containerTagPrefix).toBe("opencode");
+    expect(res.config.compactionThreshold).toBe(0.8);
   });
 
   it("no config file present: every field equals the documented DEFAULTS and apiKey is null", async () => {
     const res = await evalConfig({});
-    expect(res.SUPERMEMORY_API_KEY).toBeNull();
+    expect(res.config.apiKey ?? null).toBeNull();
     expect(res.isConfigured).toBe(false);
-    expect(res.CONFIG).toEqual({
+    expect(res.config).toEqual({
+      apiKey: undefined,
       similarityThreshold: 0.6,
       maxMemories: 5,
       maxProjectMemories: 10,
@@ -261,7 +260,7 @@ describe("getApiKey — priority order is env > config file > credentials.json",
       credentialsContent: CRED_FILE,
       env: { SUPERMEMORY_API_KEY: "sm_from_env" },
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_from_env");
+    expect(res.config.apiKey).toBe("sm_from_env");
   });
 
   it("falls through to the config file apiKey when env is unset (file > credentials)", async () => {
@@ -269,24 +268,24 @@ describe("getApiKey — priority order is env > config file > credentials.json",
       configFile: { name: "supermemory.jsonc", content: FILE_KEY },
       credentialsContent: CRED_FILE,
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_from_file");
+    expect(res.config.apiKey).toBe("sm_from_file");
   });
 
   it("falls through to credentials.json apiKey when env and file are absent", async () => {
     const res = await evalConfig({
       credentialsContent: CRED_FILE,
     });
-    expect(res.SUPERMEMORY_API_KEY).toBe("sm_from_credentials");
+    expect(res.config.apiKey).toBe("sm_from_credentials");
   });
 
   it("returns null and `isConfigured() === false` when no source provides an apiKey", async () => {
     const res = await evalConfig({});
-    expect(res.SUPERMEMORY_API_KEY).toBeNull();
+    expect(res.config.apiKey ?? null).toBeNull();
     expect(res.isConfigured).toBe(false);
   });
 
   it(".jsonc takes precedence over .json when both exist", async () => {
-    // CONFIG_FILES list in src/config.ts iterates .jsonc first, .json second.
+    // config file discovery in src/config/loader.ts iterates .jsonc first, .json second.
     // First existing-and-parseable wins, so .jsonc shadows .json.
     const tmpHome = createTmpDir("cfg-test-jsonc-vs-json");
     try {
@@ -299,8 +298,8 @@ describe("getApiKey — priority order is env > config file > credentials.json",
       delete env.SUPERMEMORY_API_KEY;
 
       const script = `
-        const mod = await import(${JSON.stringify(CONFIG_SRC)});
-        process.stdout.write(JSON.stringify({ apiKey: mod.SUPERMEMORY_API_KEY ?? null }));
+        const mod = await import(${JSON.stringify(CONFIG_LOADER_SRC)});
+        process.stdout.write(JSON.stringify({ apiKey: mod.getConfig().apiKey ?? null }));
       `;
       const proc = Bun.spawn(["bun", "-e", script], { env, stdout: "pipe" });
       const stdout = await new Response(proc.stdout).text();
@@ -322,14 +321,14 @@ describe("validateCompactionThreshold — out-of-range values fall back to defau
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":1.5}' },
     });
-    expect(res.CONFIG.compactionThreshold).toBe(0.8);
+    expect(res.config.compactionThreshold).toBe(0.8);
   });
 
   it("compactionThreshold <= 0 → reverts to default", async () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":0}' },
     });
-    expect(res.CONFIG.compactionThreshold).toBe(0.8);
+    expect(res.config.compactionThreshold).toBe(0.8);
   });
 
   it("compactionThreshold = 1 (boundary) is accepted verbatim", async () => {
@@ -337,7 +336,7 @@ describe("validateCompactionThreshold — out-of-range values fall back to defau
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":1}' },
     });
-    expect(res.CONFIG.compactionThreshold).toBe(1);
+    expect(res.config.compactionThreshold).toBe(1);
   });
 
   it("compactionThreshold of wrong type (string) → reverts to default", async () => {
@@ -345,7 +344,7 @@ describe("validateCompactionThreshold — out-of-range values fall back to defau
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":"high"}' },
     });
-    expect(res.CONFIG.compactionThreshold).toBe(0.8);
+    expect(res.config.compactionThreshold).toBe(0.8);
   });
 });
 
@@ -358,22 +357,22 @@ describe("keywordPatterns — DEFAULT_KEYWORD_PATTERNS always present, invalid r
       },
     });
     // Defaults survive.
-    expect(res.CONFIG.keywordPatterns).toContain("remember");
-    expect(res.CONFIG.keywordPatterns).toContain("never\\s+forget");
+    expect(res.config.keywordPatterns).toContain("remember");
+    expect(res.config.keywordPatterns).toContain("never\\s+forget");
     // Valid user patterns are appended.
-    expect(res.CONFIG.keywordPatterns).toContain("valid_pattern");
-    expect(res.CONFIG.keywordPatterns).toContain("another\\d+");
+    expect(res.config.keywordPatterns).toContain("valid_pattern");
+    expect(res.config.keywordPatterns).toContain("another\\d+");
     // Invalid regex is filtered out by `isValidRegex`.
-    expect(res.CONFIG.keywordPatterns).not.toContain("[unclosed");
+    expect(res.config.keywordPatterns).not.toContain("[unclosed");
   });
 
   it("user-supplied empty keywordPatterns array leaves only the 16 DEFAULT_KEYWORD_PATTERNS", async () => {
     const res = await evalConfig({
       configFile: { name: "supermemory.jsonc", content: '{"keywordPatterns":[]}' },
     });
-    expect(res.CONFIG.keywordPatterns).toHaveLength(16);
-    expect(res.CONFIG.keywordPatterns[0]).toBe("remember");
-    expect(res.CONFIG.keywordPatterns[15]).toBe("always\\s+remember");
+    expect(res.config.keywordPatterns).toHaveLength(16);
+    expect(res.config.keywordPatterns[0]).toBe("remember");
+    expect(res.config.keywordPatterns[15]).toBe("always\\s+remember");
   });
 });
 
@@ -499,6 +498,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
 
   it("getConfig caches the first call; resetConfigCache forces a re-load", async () => {
     const { getConfig, resetConfigCache } = await import("../../src/config/loader.ts");
+    resetConfigCache();
     const a = getConfig();
     const b = getConfig();
     expect(a).toBe(b); // identity equality — cached singleton

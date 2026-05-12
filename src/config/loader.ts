@@ -27,8 +27,7 @@ let cachedConfig: SupermemoryConfig | null = null;
 /**
  * Returns the cached resolved config, loading it on first call. Subsequent
  * calls return the same object — mutations on the result are observed by all
- * future readers (matches the original eager-singleton behavior of
- * `src/config.ts#CONFIG`).
+ * future readers.
  */
 export function getConfig(): SupermemoryConfig {
   if (!cachedConfig) cachedConfig = loadConfig();

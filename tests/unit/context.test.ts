@@ -1,35 +1,9 @@
-import { beforeAll, describe, expect, it, mock } from "bun:test";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { beforeAll, describe, expect, it } from "bun:test";
 
-// We mock `src/config.ts` BEFORE context.ts is imported so that the
-// behavior under test is independent of whatever lives on the developer's
-// machine (`~/.config/opencode/supermemory.jsonc`). The mocked CONFIG
-// uses the documented defaults from src/config.ts (DEFAULTS).
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, "..", "..");
-const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
-
-mock.module(CONFIG_ABS, () => ({
-  CONFIG: {
-    injectProfile: true,
-    maxProfileItems: 5,
-    similarityThreshold: 0.6,
-    maxMemories: 5,
-    maxProjectMemories: 10,
-    containerTagPrefix: "opencode",
-    userContainerTag: undefined,
-    projectContainerTag: undefined,
-    filterPrompt: "",
-    keywordPatterns: [],
-    compactionThreshold: 0.8,
-  },
-  SUPERMEMORY_API_KEY: "test-key",
-  isConfigured: () => true,
-}));
 
 // Dynamic import so the mock above is in effect.
 let formatContextForPrompt: typeof import("../../src/memory/context.ts").formatContextForPrompt;
+const testConfig = { injectProfile: true, maxProfileItems: 5 };
 
 beforeAll(async () => {
   const mod = await import("../../src/memory/context.ts");
@@ -50,7 +24,7 @@ describe("formatContextForPrompt", () => {
     // Locks: when there is nothing to inject, the function returns "" so
     // the caller can skip prompt augmentation entirely (instead of
     // emitting a lonely "[SUPERMEMORY]" header).
-    const out = formatContextForPrompt(null, {}, {});
+    const out = formatContextForPrompt(null, {}, {}, testConfig);
     expect(out).toBe("");
   });
 
@@ -61,7 +35,7 @@ describe("formatContextForPrompt", () => {
         dynamic: [],
       },
     } satisfies ProfileLike;
-    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {});
+    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {}, testConfig);
     expect(out).toMatchInlineSnapshot(`
 "[SUPERMEMORY]
 
@@ -78,7 +52,7 @@ User Profile:
         dynamic: ["Currently refactoring services/", "Asked about JSONC fixtures yesterday"],
       },
     } satisfies ProfileLike;
-    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {});
+    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {}, testConfig);
     expect(out).toMatchInlineSnapshot(`
 "[SUPERMEMORY]
 
@@ -98,6 +72,7 @@ Recent Context:
           { similarity: 0.4, memory: "Build: bun run build" },
         ],
       },
+      testConfig,
     );
     // Similarity is rounded with Math.round — 0.954 → 95%, 0.4 → 40%.
     expect(out).toMatchInlineSnapshot(`
@@ -122,6 +97,7 @@ Project Knowledge:
         ],
       },
       {},
+      testConfig,
     );
     expect(out).toMatchInlineSnapshot(`
 "[SUPERMEMORY]
@@ -146,7 +122,7 @@ Relevant Memories:
         dynamic: [],
       },
     } satisfies ProfileLike;
-    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {});
+    const out = formatContextForPrompt(profile as unknown as Parameters<typeof formatContextForPrompt>[0], {}, {}, testConfig);
     expect(out).toMatchInlineSnapshot(`
 "[SUPERMEMORY]
 
@@ -168,6 +144,7 @@ User Profile:
       profile as unknown as Parameters<typeof formatContextForPrompt>[0],
       { results: [{ similarity: 0.91, memory: "U1" }] },
       { results: [{ similarity: 0.77, memory: "P1" }] },
+      testConfig,
     );
     expect(out).toMatchInlineSnapshot(`
 "[SUPERMEMORY]

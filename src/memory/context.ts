@@ -1,6 +1,7 @@
 import type { ProfileResponse } from "supermemory/resources";
 
-import { CONFIG } from "../config.js";
+import { getConfig } from "../config/loader.js";
+import type { SupermemoryConfig } from "../config/schema.js";
 
 interface MemoryResultMinimal {
   similarity?: number;
@@ -26,15 +27,16 @@ export function formatContextForPrompt(
   profile: ProfileResponse | null,
   userMemories: MemoriesResponseMinimal,
   projectMemories: MemoriesResponseMinimal,
+  config: Pick<SupermemoryConfig, "injectProfile" | "maxProfileItems"> = getConfig(),
 ): string {
   const parts: string[] = ["[SUPERMEMORY]"];
 
-  if (CONFIG.injectProfile && profile?.profile) {
+  if (config.injectProfile && profile?.profile) {
     const { static: staticFacts, dynamic: dynamicFacts } = profile.profile;
 
     if (staticFacts.length > 0) {
       parts.push("\nUser Profile:");
-      staticFacts.slice(0, CONFIG.maxProfileItems).forEach((fact) => {
+      staticFacts.slice(0, config.maxProfileItems).forEach((fact) => {
         const text = extractFactText(fact);
         parts.push(`- ${text}`);
       });
@@ -42,7 +44,7 @@ export function formatContextForPrompt(
 
     if (dynamicFacts.length > 0) {
       parts.push("\nRecent Context:");
-      dynamicFacts.slice(0, CONFIG.maxProfileItems).forEach((fact) => {
+      dynamicFacts.slice(0, config.maxProfileItems).forEach((fact) => {
         const text = extractFactText(fact);
         parts.push(`- ${text}`);
       });

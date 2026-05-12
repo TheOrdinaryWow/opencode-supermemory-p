@@ -2,7 +2,7 @@ Here is how to read a JSONC config in TypeScript:
 
 ```ts
 import { readFileSync } from "node:fs";
-import { stripJsoncComments } from "./services/jsonc";
+import { stripJsoncComments } from "@/shared/jsonc";
 
 const raw = readFileSync("./supermemory.jsonc", "utf-8");
 const config = JSON.parse(stripJsoncComments(raw));

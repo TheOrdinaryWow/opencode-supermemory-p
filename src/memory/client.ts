@@ -1,8 +1,8 @@
 import Supermemory from "supermemory";
 
-import { CONFIG, isConfigured, SUPERMEMORY_API_KEY } from "../config.js";
+import { getConfig } from "../config/loader.js";
 import type { AppError } from "../shared/errors.js";
-import { log } from "../shared/logger.js";
+import { defaultLogger } from "../shared/logger.js";
 import { err, ok, type Result } from "../shared/result.js";
 import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "../types/index.ts";
 
@@ -38,7 +38,7 @@ async function withResult<T>(label: string, fn: () => Promise<T>): Promise<Resul
     return ok(await fn());
   } catch (error) {
     const appError = toAppError(error);
-    log(`${label}: error`, { error: appError.message });
+    defaultLogger.info(`${label}: error`, { error: appError.message });
     return err(appError);
   }
 }
@@ -72,38 +72,40 @@ export class SupermemoryClient {
 
   private getClient(): Supermemory {
     if (!this.client) {
-      if (!isConfigured()) {
+      const config = getConfig();
+      if (!config.apiKey) {
         throw new Error("SUPERMEMORY_API_KEY not set");
       }
-      this.client = new Supermemory({ apiKey: SUPERMEMORY_API_KEY });
+      this.client = new Supermemory({ apiKey: config.apiKey });
       this.client.settings.update({
         shouldLLMFilter: true,
-        filterPrompt: CONFIG.filterPrompt,
+        filterPrompt: config.filterPrompt,
       });
     }
     return this.client;
   }
 
   async searchMemories(query: string, containerTag: string): Promise<Result<SearchMemoriesResult, AppError>> {
-    log("searchMemories: start", { containerTag });
+    const config = getConfig();
+    defaultLogger.info("searchMemories: start", { containerTag });
     return withResult("searchMemories", async () => {
       const result = await withTimeout(
         this.getClient().search.memories({
           q: query,
           containerTag,
-          threshold: CONFIG.similarityThreshold,
-          limit: CONFIG.maxMemories,
+          threshold: config.similarityThreshold,
+          limit: config.maxMemories,
           searchMode: "hybrid",
         }),
         TIMEOUT_MS,
       );
-      log("searchMemories: success", { count: result.results?.length || 0 });
+      defaultLogger.info("searchMemories: success", { count: result.results?.length || 0 });
       return { success: true as const, ...result };
     });
   }
 
   async getProfile(containerTag: string, query?: string): Promise<Result<ProfileResult, AppError>> {
-    log("getProfile: start", { containerTag });
+    defaultLogger.info("getProfile: start", { containerTag });
     return withResult("getProfile", async () => {
       const result = await withTimeout(
         this.getClient().profile({
@@ -112,7 +114,7 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      log("getProfile: success", { hasProfile: !!result?.profile });
+      defaultLogger.info("getProfile: success", { hasProfile: !!result?.profile });
       return { success: true as const, ...result };
     });
   }
@@ -122,7 +124,7 @@ export class SupermemoryClient {
     containerTag: string,
     metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown },
   ): Promise<Result<AddMemoryResult, AppError>> {
-    log("addMemory: start", { containerTag, contentLength: content.length });
+    defaultLogger.info("addMemory: start", { containerTag, contentLength: content.length });
     return withResult("addMemory", async () => {
       const result = await withTimeout(
         this.getClient().memories.add({
@@ -132,22 +134,22 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      log("addMemory: success", { id: result.id });
+      defaultLogger.info("addMemory: success", { id: result.id });
       return { success: true as const, ...result };
     });
   }
 
   async deleteMemory(memoryId: string): Promise<Result<DeleteMemoryResult, AppError>> {
-    log("deleteMemory: start", { memoryId });
+    defaultLogger.info("deleteMemory: start", { memoryId });
     return withResult("deleteMemory", async () => {
       await withTimeout(this.getClient().memories.delete(memoryId), TIMEOUT_MS);
-      log("deleteMemory: success", { memoryId });
+      defaultLogger.info("deleteMemory: success", { memoryId });
       return { success: true };
     });
   }
 
   async listMemories(containerTag: string, limit = 20): Promise<Result<ListMemoriesResult, AppError>> {
-    log("listMemories: start", { containerTag, limit });
+    defaultLogger.info("listMemories: start", { containerTag, limit });
     return withResult("listMemories", async () => {
       const result = await withTimeout(
         this.getClient().memories.list({
@@ -159,7 +161,7 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      log("listMemories: success", { count: result.memories?.length || 0 });
+      defaultLogger.info("listMemories: success", { count: result.memories?.length || 0 });
       return { success: true as const, ...result };
     });
   }
@@ -170,7 +172,7 @@ export class SupermemoryClient {
     containerTags: string[],
     metadata?: Record<string, string | number | boolean>,
   ): Promise<Result<IngestConversationResult, AppError>> {
-    log("ingestConversation: start", {
+    defaultLogger.info("ingestConversation: start", {
       conversationId,
       messageCount: messages.length,
       containerTags,
@@ -212,7 +214,7 @@ export class SupermemoryClient {
 
     if (savedIds.length === 0) {
       const error = firstError ?? ({ kind: "NetworkError", message: "Failed to ingest conversation" } satisfies AppError);
-      log("ingestConversation: error", { conversationId, error: error.message });
+      defaultLogger.info("ingestConversation: error", { conversationId, error: error.message });
       return err(error);
     }
 
@@ -223,7 +225,7 @@ export class SupermemoryClient {
       status,
     };
 
-    log("ingestConversation: success", {
+    defaultLogger.info("ingestConversation: success", {
       conversationId,
       status,
       storedCount: savedIds.length,

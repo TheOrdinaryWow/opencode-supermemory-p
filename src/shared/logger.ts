@@ -125,13 +125,3 @@ export function initLogger(): void {
   const line = `\n--- Session started: ${new Date().toISOString()} ---\n`;
   appendFileSync(resolveDefaultPath(), line);
 }
-
-/**
- * Backwards-compatible shim for the original `log(message, data?)` API.
- * Writes at `info` level via the default logger so existing consumers
- * (src/index.ts, src/services/client.ts, src/services/compaction.ts) keep
- * working until T21 migrates them to `defaultLogger.info()` etc.
- */
-export function log(message: string, data?: unknown): void {
-  defaultLogger.info(message, data);
-}

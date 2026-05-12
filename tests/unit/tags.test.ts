@@ -1,10 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, "..", "..");
-const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
 
 // =====================================================================
 // In-test mock state — kept self-contained so the global `mock.module`
@@ -12,7 +7,7 @@ const CONFIG_ABS = join(REPO_ROOT, "src", "config.ts");
 // tests/helpers/__sanity__.test.ts, which uses the real execSync).
 // =====================================================================
 
-// Mutable CONFIG state shared with the consumer (tags.ts reads CONFIG.xxx
+// Mutable config state shared with the consumer (tags.ts calls getConfig()
 // at runtime, so mutating these between tests takes effect immediately).
 const mockConfig: {
   containerTagPrefix: string;
@@ -30,12 +25,6 @@ type GitEmailResponder = string | Error | (() => string);
 let gitEmailResponder: GitEmailResponder | null = null;
 let gitEmailCallCount = 0;
 
-// Mock src/config.ts so tags.ts sees a deterministic CONFIG object.
-mock.module(CONFIG_ABS, () => ({
-  CONFIG: mockConfig,
-  SUPERMEMORY_API_KEY: "test-key",
-  isConfigured: () => true,
-}));
 
 // Patch node:child_process — intercept ONLY `git config user.email` and
 // pass every other command through to the real execSync. This keeps
@@ -67,14 +56,14 @@ mock.module("node:child_process", () => {
 
 let tags: typeof import("../../src/memory/tags.ts");
 
+beforeEach(async () => {
+  tags ??= await import("../../src/memory/tags.ts");
+});
+
 // Save / restore env between tests so the process.env.USER fallback path
 // is deterministic regardless of the developer's machine.
 let prevUser: string | undefined;
 let prevUsername: string | undefined;
-
-beforeAll(async () => {
-  tags = await import("../../src/memory/tags.ts");
-});
 
 beforeEach(() => {
   mockConfig.containerTagPrefix = "opencode";
@@ -90,7 +79,7 @@ beforeEach(() => {
   prevUsername = process.env.USERNAME;
 });
 
-afterAll(() => {
+afterEach(() => {
   if (prevUser === undefined) delete process.env.USER;
   else process.env.USER = prevUser;
   if (prevUsername === undefined) delete process.env.USERNAME;
@@ -117,10 +106,10 @@ describe("getGitEmail", () => {
 });
 
 describe("getUserTag", () => {
-  it("returns CONFIG.userContainerTag verbatim when explicitly set (overrides email hashing)", () => {
+  it("returns config.userContainerTag verbatim when explicitly set (overrides email hashing)", () => {
     mockConfig.userContainerTag = "my-custom-user-tag";
     // gitEmailResponder is null — the override short-circuits before any git call.
-    expect(tags.getUserTag()).toBe("my-custom-user-tag");
+    expect(tags.getUserTag(mockConfig)).toBe("my-custom-user-tag");
     expect(gitEmailCallCount).toBe(0);
   });
 
@@ -129,7 +118,7 @@ describe("getUserTag", () => {
     // sha256("test@example.com").slice(0,16) == 973dfe463ec85785
     // This exact byte sequence MUST survive T14 (getGitEmail caching) and
     // any future refactor of tags.ts. Snapshot locks the full output string.
-    expect(tags.getUserTag()).toMatchInlineSnapshot(`"opencode_user_973dfe463ec85785"`);
+    expect(tags.getUserTag(mockConfig)).toMatchInlineSnapshot(`"opencode_user_973dfe463ec85785"`);
   });
 
   it("falls back to process.env.USER when git fails and userContainerTag is unset", () => {
@@ -137,7 +126,7 @@ describe("getUserTag", () => {
     process.env.USER = "alice";
     delete process.env.USERNAME;
     // sha256("alice").slice(0,16) == 2bd806c97f0e00af
-    expect(tags.getUserTag()).toMatchInlineSnapshot(`"opencode_user_2bd806c97f0e00af"`);
+    expect(tags.getUserTag(mockConfig)).toMatchInlineSnapshot(`"opencode_user_2bd806c97f0e00af"`);
   });
 
   it("falls through USER -> USERNAME -> 'anonymous' when no env user is set", () => {
@@ -145,31 +134,31 @@ describe("getUserTag", () => {
     delete process.env.USER;
     delete process.env.USERNAME;
     // sha256("anonymous").slice(0,16) == 2f183a4e64493af3
-    expect(tags.getUserTag()).toMatchInlineSnapshot(`"opencode_user_2f183a4e64493af3"`);
+    expect(tags.getUserTag(mockConfig)).toMatchInlineSnapshot(`"opencode_user_2f183a4e64493af3"`);
   });
 
   it("honors a custom containerTagPrefix when auto-generating the user tag", () => {
     mockConfig.containerTagPrefix = "omsm-test";
     gitEmailResponder = "test@example.com\n";
-    expect(tags.getUserTag()).toBe("omsm-test_user_973dfe463ec85785");
+    expect(tags.getUserTag(mockConfig)).toBe("omsm-test_user_973dfe463ec85785");
   });
 });
 
 describe("getProjectTag", () => {
-  it("returns CONFIG.projectContainerTag verbatim when explicitly set", () => {
+  it("returns config.projectContainerTag verbatim when explicitly set", () => {
     mockConfig.projectContainerTag = "my-project-tag";
     // Argument is ignored entirely when the override is set.
-    expect(tags.getProjectTag("/whatever/path")).toBe("my-project-tag");
+    expect(tags.getProjectTag("/whatever/path", mockConfig)).toBe("my-project-tag");
   });
 
   it("auto-generates a project tag from `{prefix}_project_{sha256(directory).slice(0,16)}` (byte-identical)", () => {
     // sha256("/test/project").slice(0,16) == 43ac6f583851e4e9
-    expect(tags.getProjectTag("/test/project")).toMatchInlineSnapshot(`"opencode_project_43ac6f583851e4e9"`);
+    expect(tags.getProjectTag("/test/project", mockConfig)).toMatchInlineSnapshot(`"opencode_project_43ac6f583851e4e9"`);
   });
 
   it("hashes the directory verbatim — different paths produce different tags", () => {
-    const a = tags.getProjectTag("/test/project");
-    const b = tags.getProjectTag("/test/project/");
+    const a = tags.getProjectTag("/test/project", mockConfig);
+    const b = tags.getProjectTag("/test/project/", mockConfig);
     expect(a).not.toBe(b);
   });
 });
@@ -177,7 +166,7 @@ describe("getProjectTag", () => {
 describe("getTags", () => {
   it("returns an object with both `user` and `project` keys in that exact order", () => {
     gitEmailResponder = "test@example.com\n";
-    const result = tags.getTags("/test/project");
+    const result = { user: tags.getUserTag(mockConfig), project: tags.getProjectTag("/test/project", mockConfig) };
     expect(Object.keys(result)).toEqual(["user", "project"]);
     expect(result.user).toBe("opencode_user_973dfe463ec85785");
     expect(result.project).toBe("opencode_project_43ac6f583851e4e9");
@@ -189,8 +178,8 @@ describe("in-process cache for git email (T14)", () => {
     gitEmailResponder = "test@example.com\n";
 
     // Two independent calls — with caching, only the first hits execSync.
-    tags.getUserTag();
-    tags.getUserTag();
+    tags.getUserTag(mockConfig);
+    tags.getUserTag(mockConfig);
 
     // T14 caching: second call returns the cached email and skips execSync.
     // Before T14 this assertion locked toBe(2); the change to toBe(1) is the
@@ -218,7 +207,7 @@ describe("in-process cache for git email (T14)", () => {
     // return the cached null without invoking execSync again.
     tags.getGitEmail();
     tags.getGitEmail();
-    tags.getUserTag(); // also routes through getGitEmail internally
+    tags.getUserTag(mockConfig); // also routes through getGitEmail internally
 
     expect(gitEmailCallCount).toBe(1);
   });

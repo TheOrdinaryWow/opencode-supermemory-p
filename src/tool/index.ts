@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin";
 
-import { isConfigured } from "../config.js";
+import { getConfig } from "../config/loader.js";
 import type { supermemoryClient } from "../memory/client.js";
 import type { MemoryScope, MemoryType } from "../types/index.js";
 import { executeAdd } from "./add.js";
@@ -57,7 +57,7 @@ export function createSupermemoryTool(deps: ToolDeps): ReturnType<typeof tool> {
       limit: tool.schema.number().optional(),
     },
     async execute(args: ToolArgs) {
-      if (!isConfigured()) {
+      if (!getConfig().apiKey) {
         return JSON.stringify({
           success: false,
           error: "SUPERMEMORY_API_KEY not set. Set it in your environment to use Supermemory.",

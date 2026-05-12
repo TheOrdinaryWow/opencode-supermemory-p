@@ -1,4 +1,4 @@
-import { CONFIG } from "../config.js";
+import { getConfig } from "../config/loader.js";
 import { supermemoryClient } from "../memory/client.js";
 import { defaultLogger as logger } from "../shared/logger.js";
 import { findNearestMessageWithFields } from "./finder.js";
@@ -197,7 +197,7 @@ export async function injectMemoryContext(deps: HookDeps, summarizeCtx: Summariz
 
 async function fetchProjectMemoriesForCompaction(projectTag: string): Promise<string[]> {
   try {
-    const result = await supermemoryClient.listMemories(projectTag, CONFIG.maxProjectMemories);
+    const result = await supermemoryClient.listMemories(projectTag, getConfig().maxProjectMemories);
     return (result.memories || []).map((m) => m.summary || m.content || "").filter(Boolean);
   } catch (err) {
     logger.warn("[compaction] failed to fetch project memories", { error: String(err) });
