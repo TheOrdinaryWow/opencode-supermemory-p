@@ -1,30 +1,29 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
+// Compaction shim. The pure pieces (state / threshold / prompt / finder /
+// message-store) live under src/compaction/ as of T16. createCompactionHook
+// itself stays here until T17 splits the orchestrator out.
 import { CONFIG } from "../config.js";
 import { supermemoryClient } from "./client.js";
 import { log } from "./logger.js";
 
-const MESSAGE_STORAGE = join(homedir(), ".opencode", "messages");
-const PART_STORAGE = join(homedir(), ".opencode", "parts");
+// Forward every public surface from the extracted modules so historical
+// imports of "./services/compaction.js" keep working.
+export * from "../compaction/state.js";
+export * from "../compaction/message-store.js";
+export * from "../compaction/threshold.js";
+export * from "../compaction/prompt.js";
+export * from "../compaction/finder.js";
 
-const DEFAULT_THRESHOLD = 0.8;
-const MIN_TOKENS_FOR_COMPACTION = 50_000;
-const COMPACTION_COOLDOWN_MS = 30_000;
-const DEFAULT_CONTEXT_LIMIT = 200_000;
-
-interface CompactionState {
-  lastCompactionTime: Map<string, number>;
-  compactionInProgress: Set<string>;
-  summarizedSessions: Set<string>;
-}
-
-interface TokenInfo {
-  input: number;
-  output: number;
-  cache: { read: number; write: number };
-}
+import { createCompactionState, type CompactionState } from "../compaction/state.js";
+import { getMessageDir, injectHookMessage } from "../compaction/message-store.js";
+import {
+  COMPACTION_COOLDOWN_MS,
+  DEFAULT_CONTEXT_LIMIT,
+  DEFAULT_THRESHOLD,
+  MIN_TOKENS_FOR_COMPACTION,
+  type TokenInfo,
+} from "../compaction/threshold.js";
+import { createCompactionPrompt } from "../compaction/prompt.js";
+import { findNearestMessageWithFields } from "../compaction/finder.js";
 
 interface MessageInfo {
   id: string;
@@ -35,11 +34,6 @@ interface MessageInfo {
   tokens?: TokenInfo;
   summary?: boolean;
   finish?: boolean;
-}
-
-interface StoredMessage {
-  agent?: string;
-  model?: { providerID?: string; modelID?: string };
 }
 
 interface SummarizeContext {
@@ -54,180 +48,6 @@ interface SummarizeContext {
 export interface CompactionOptions {
   threshold?: number;
   getModelLimit?: (providerID: string, modelID: string) => number | undefined;
-}
-
-function createCompactionPrompt(projectMemories: string[]): string {
-  const memoriesSection =
-    projectMemories.length > 0
-      ? `
-## Project Knowledge (from Supermemory)
-The following project-specific knowledge should be preserved and referenced in the summary:
-${projectMemories.map((m) => `- ${m}`).join("\n")}
-`
-      : "";
-
-  return `[COMPACTION CONTEXT INJECTION]
-
-When summarizing this session, you MUST include the following sections in your summary:
-
-## 1. User Requests (As-Is)
-- List all original user requests exactly as they were stated
-- Preserve the user's exact wording and intent
-
-## 2. Final Goal
-- What the user ultimately wanted to achieve
-- The end result or deliverable expected
-
-## 3. Work Completed
-- What has been done so far
-- Files created/modified
-- Features implemented
-- Problems solved
-
-## 4. Remaining Tasks
-- What still needs to be done
-- Pending items from the original request
-- Follow-up tasks identified during the work
-
-## 5. MUST NOT Do (Critical Constraints)
-- Things that were explicitly forbidden
-- Approaches that failed and should not be retried
-- User's explicit restrictions or preferences
-- Anti-patterns identified during the session
-${memoriesSection}
-This context is critical for maintaining continuity after compaction.
-`;
-}
-
-function getMessageDir(sessionID: string): string | null {
-  if (!existsSync(MESSAGE_STORAGE)) return null;
-
-  const directPath = join(MESSAGE_STORAGE, sessionID);
-  if (existsSync(directPath)) return directPath;
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID);
-    if (existsSync(sessionPath)) return sessionPath;
-  }
-
-  return null;
-}
-
-function getOrCreateMessageDir(sessionID: string): string {
-  if (!existsSync(MESSAGE_STORAGE)) {
-    mkdirSync(MESSAGE_STORAGE, { recursive: true });
-  }
-
-  const directPath = join(MESSAGE_STORAGE, sessionID);
-  if (existsSync(directPath)) return directPath;
-
-  for (const dir of readdirSync(MESSAGE_STORAGE)) {
-    const sessionPath = join(MESSAGE_STORAGE, dir, sessionID);
-    if (existsSync(sessionPath)) return sessionPath;
-  }
-
-  mkdirSync(directPath, { recursive: true });
-  return directPath;
-}
-
-function findNearestMessageWithFields(messageDir: string): StoredMessage | null {
-  try {
-    const files = readdirSync(messageDir)
-      .filter((f) => f.endsWith(".json"))
-      .sort()
-      .reverse();
-
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(messageDir, file), "utf-8");
-        const msg = JSON.parse(content) as StoredMessage;
-        if (msg.agent && msg.model?.providerID && msg.model?.modelID) {
-          return msg;
-        }
-      } catch {}
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function generateMessageId(): string {
-  const timestamp = Date.now().toString(16);
-  const random = Math.random().toString(36).substring(2, 14);
-  return `msg_${timestamp}${random}`;
-}
-
-function generatePartId(): string {
-  const timestamp = Date.now().toString(16);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `prt_${timestamp}${random}`;
-}
-
-function injectHookMessage(
-  sessionID: string,
-  hookContent: string,
-  originalMessage: {
-    agent?: string;
-    model?: { providerID?: string; modelID?: string };
-    path?: { cwd?: string; root?: string };
-  },
-): boolean {
-  if (!hookContent || hookContent.trim().length === 0) {
-    log("[compaction] attempted to inject empty content, skipping");
-    return false;
-  }
-
-  const messageDir = getOrCreateMessageDir(sessionID);
-  const fallback = findNearestMessageWithFields(messageDir);
-
-  const now = Date.now();
-  const messageID = generateMessageId();
-  const partID = generatePartId();
-
-  const resolvedAgent = originalMessage.agent ?? fallback?.agent ?? "general";
-  const resolvedModel =
-    originalMessage.model?.providerID && originalMessage.model?.modelID
-      ? { providerID: originalMessage.model.providerID, modelID: originalMessage.model.modelID }
-      : fallback?.model?.providerID && fallback?.model?.modelID
-        ? { providerID: fallback.model.providerID, modelID: fallback.model.modelID }
-        : undefined;
-
-  const messageMeta = {
-    id: messageID,
-    sessionID,
-    role: "user",
-    time: { created: now },
-    agent: resolvedAgent,
-    model: resolvedModel,
-    path: originalMessage.path?.cwd ? { cwd: originalMessage.path.cwd, root: originalMessage.path.root ?? "/" } : undefined,
-  };
-
-  const textPart = {
-    id: partID,
-    type: "text",
-    text: hookContent,
-    synthetic: true,
-    time: { start: now, end: now },
-    messageID,
-    sessionID,
-  };
-
-  try {
-    writeFileSync(join(messageDir, `${messageID}.json`), JSON.stringify(messageMeta, null, 2));
-
-    const partDir = join(PART_STORAGE, messageID);
-    if (!existsSync(partDir)) {
-      mkdirSync(partDir, { recursive: true });
-    }
-    writeFileSync(join(partDir, `${partID}.json`), JSON.stringify(textPart, null, 2));
-
-    log("[compaction] hook message injected", { sessionID, messageID });
-    return true;
-  } catch (err) {
-    log("[compaction] failed to inject hook message", { error: String(err) });
-    return false;
-  }
 }
 
 export interface CompactionContext {
@@ -253,11 +73,7 @@ export interface CompactionContext {
 }
 
 export function createCompactionHook(ctx: CompactionContext, tags: { user: string; project: string }, options?: CompactionOptions) {
-  const state: CompactionState = {
-    lastCompactionTime: new Map(),
-    compactionInProgress: new Set(),
-    summarizedSessions: new Set(),
-  };
+  const state: CompactionState = createCompactionState();
 
   const threshold = options?.threshold ?? DEFAULT_THRESHOLD;
   const getModelLimit = options?.getModelLimit;
