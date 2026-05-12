@@ -7,6 +7,7 @@ import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
+const TEMPLATE_DIR = join(REPO_ROOT, "cli", "templates");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");
 const BASELINE_HELP = readFileSync(join(REPO_ROOT, "tests", "fixtures", "baseline", "cli-help.txt"), "utf-8");
 
@@ -49,6 +50,12 @@ function writeCredentials(home: string): void {
   writeFileSync(join(dir, "credentials.json"), JSON.stringify({ apiKey: "sm_test_cli", createdAt: "2026-01-01T00:00:00.000Z" }));
 }
 
+function expectInstalledCommandToMatchTemplate(home: string, name: string): void {
+  const templatePath = join(TEMPLATE_DIR, `${name}.md`);
+  const installedPath = join(home, ".config", "opencode", "command", `${name}.md`);
+  expect(readFileSync(installedPath, "utf-8")).toBe(readFileSync(templatePath, "utf-8"));
+}
+
 describe("CLI commands", () => {
   it("prints the baseline help text", async () => {
     const result = await runCli(["--help"]);
@@ -73,6 +80,9 @@ describe("CLI commands", () => {
       expect(existsSync(join(commandDir, "supermemory-init.md"))).toBe(true);
       expect(existsSync(join(commandDir, "supermemory-login.md"))).toBe(true);
       expect(existsSync(join(commandDir, "supermemory-logout.md"))).toBe(true);
+      expectInstalledCommandToMatchTemplate(result.home, "supermemory-init");
+      expectInstalledCommandToMatchTemplate(result.home, "supermemory-login");
+      expectInstalledCommandToMatchTemplate(result.home, "supermemory-logout");
       expect(result.stdout).toContain("Setup complete");
     } finally {
       cleanupCliResult(result);
