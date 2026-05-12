@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { defaultLogger as logger } from "../shared/logger.js";
+
 /**
  * Minimal subset of an OpenCode stored message that compaction logic cares
  * about. Used to recover agent + provider/model identity when the live event
@@ -40,9 +42,12 @@ export function findNearestMessageWithFields(messageDir: string): StoredMessage 
         if (msg.agent && msg.model?.providerID && msg.model?.modelID) {
           return msg;
         }
-      } catch {}
+      } catch (err) {
+        logger.warn("[compaction] failed to read stored message", { file, error: String(err) });
+      }
     }
-  } catch {
+  } catch (err) {
+    logger.warn("[compaction] failed to scan stored messages", { messageDir, error: String(err) });
     return null;
   }
   return null;
