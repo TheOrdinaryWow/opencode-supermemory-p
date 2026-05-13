@@ -64,7 +64,7 @@ jobs:
       - name: Setup Node (for npm publish + provenance)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
@@ -93,8 +93,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Configure git (manual bootstrap path)
         if: github.event_name == 'workflow_dispatch'
