@@ -245,8 +245,9 @@ export class SupermemoryClient {
 
 export const resultSupermemoryClient = new SupermemoryClient();
 
-function unwrapOrLegacyShape<T, F>(result: Result<T, AppError>, fallback: F): T | F {
-  return result.ok ? result.value : fallback;
+function unwrapOrLegacyShape<T, F extends { error: string }>(result: Result<T, AppError>, fallback: F): T | F {
+  if (result.ok) return result.value;
+  return { ...fallback, error: result.error.message || fallback.error };
 }
 
 type LegacyFailure<T = object> = { success: false; error: string } & T;
