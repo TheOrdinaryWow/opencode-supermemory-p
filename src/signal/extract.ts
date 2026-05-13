@@ -54,7 +54,7 @@ export function findSignalTurns(turns: Turn[], keywords: string[]): number[] {
     const normalizedText = turn.text.toLowerCase();
 
     if (normalizedKeywords.some((keyword) => normalizedText.includes(keyword))) {
-      return [...indices, index];
+      indices.push(index);
     }
 
     return indices;

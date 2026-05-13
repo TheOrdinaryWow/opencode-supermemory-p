@@ -106,10 +106,10 @@ describe("periodic recall re-injection", () => {
       await handleChatMessage({ sessionID: "cadence-session" }, output, deps);
     }
 
-    expect(contextParts(outputs[0]!)).toHaveLength(1);
-    expect(contextParts(outputs[1]!)).toHaveLength(0);
-    expect(contextParts(outputs[2]!)).toHaveLength(0);
-    expect(contextParts(outputs[3]!)).toHaveLength(1);
+    expect(contextParts(outputs[0] ?? { parts: [] })).toHaveLength(1);
+    expect(contextParts(outputs[1] ?? { parts: [] })).toHaveLength(0);
+    expect(contextParts(outputs[2] ?? { parts: [] })).toHaveLength(0);
+    expect(contextParts(outputs[3] ?? { parts: [] })).toHaveLength(1);
     expect(deps.client.calls.searchMemories).toEqual([
       ["turn 1", "u-tag"],
       ["turn 4", ["u-tag", "p-tag"]],
