@@ -111,6 +111,21 @@ describe("CLI commands", () => {
     }
   });
 
+  it("version subcommand prints package name and version", async () => {
+    const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf-8")) as { name: string; version: string };
+    const expected = `${pkg.name} ${pkg.version}`;
+    for (const args of [["version"], ["--version"], ["-v"]]) {
+      const result = await runCli(args);
+      try {
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout.trim()).toBe(expected);
+        expect(result.stderr).toBe("");
+      } finally {
+        cleanupCliResult(result);
+      }
+    }
+  });
+
   it("unknown commands exit non-zero and print help", async () => {
     const result = await runCli(["bogus-cmd"]);
     try {

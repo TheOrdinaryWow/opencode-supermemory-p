@@ -7,10 +7,15 @@ Commands:
     --disable-context-recovery   Disable Oh My OpenAgent's context hook
   login      Authenticate with Supermemory (opens browser)
   logout     Clear stored credentials
+  version    Show the installed version
+
+Flags:
+  -v, --version  Show the installed version
 
 Examples:
   bunx opencode-supermemory-p@latest install
   bunx opencode-supermemory-p@latest login
   bunx opencode-supermemory-p@latest logout
+  bunx opencode-supermemory-p@latest version
 
 EXIT=0
