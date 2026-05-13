@@ -2,11 +2,15 @@ import type { ProfileResponse } from "supermemory/resources";
 
 import { getConfig } from "@/config/loader";
 import type { SupermemoryConfig } from "@/config/schema";
+import { formatMemoFooter } from "@/memory/footer";
+import { formatRelativeTime } from "@/memory/relative-time";
+import { dedupe } from "@/shared/collection";
 
 interface MemoryResultMinimal {
   similarity?: number;
   memory?: string;
   chunk?: string;
+  createdAt?: string | Date;
 }
 
 interface MemoriesResponseMinimal {
@@ -23,56 +27,96 @@ function extractFactText(fact: unknown): string {
   return String(fact ?? "");
 }
 
+function getMemoryContent(memory: MemoryResultMinimal): string {
+  return memory.memory || memory.chunk || "";
+}
+
+function normalizeFactText(text: string): string {
+  return text.toLowerCase().trim();
+}
+
+function formatMemoryLine(memory: MemoryResultMinimal, useRelativeTime: boolean): string {
+  const similarity = Math.round((memory.similarity ?? 0) * 100);
+  const content = getMemoryContent(memory);
+  const relativeTime = useRelativeTime && memory.createdAt != null ? formatRelativeTime(memory.createdAt) : "";
+  const timestampSuffix = relativeTime ? ` (${relativeTime})` : "";
+
+  return `- [${similarity}%] ${content}${timestampSuffix}`;
+}
+
 export function formatContextForPrompt(
   profile: ProfileResponse | null,
   userMemories: MemoriesResponseMinimal,
   projectMemories: MemoriesResponseMinimal,
-  config: Pick<SupermemoryConfig, "injectProfile" | "maxProfileItems"> = getConfig(),
+  config: Pick<SupermemoryConfig, "injectProfile" | "maxProfileItems"> &
+    Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">> = getConfig(),
 ): string {
   const parts: string[] = ["[SUPERMEMORY]"];
+  const useRelativeTime = config.relativeTimeDisplay === true;
+  let staticFactTexts: string[] = [];
+  let dynamicFactTexts: string[] = [];
+  const projectResults = projectMemories.results || [];
+  let userResults = userMemories.results || [];
 
   if (config.injectProfile && profile?.profile) {
     const { static: staticFacts, dynamic: dynamicFacts } = profile.profile;
+    staticFactTexts = staticFacts.slice(0, config.maxProfileItems).map(extractFactText);
+    dynamicFactTexts = dynamicFacts.slice(0, config.maxProfileItems).map(extractFactText);
 
-    if (staticFacts.length > 0) {
+    if (config.profileCrossArrayDedup === true) {
+      staticFactTexts = dedupe<string>(staticFactTexts);
+      const staticFactKeys = new Set(staticFactTexts.map(normalizeFactText));
+      dynamicFactTexts = dedupe<string>(dynamicFactTexts.filter((fact) => !staticFactKeys.has(normalizeFactText(fact))));
+      const profileFactKeys = new Set([...staticFactTexts, ...dynamicFactTexts].map(normalizeFactText));
+      userResults = dedupe<MemoryResultMinimal>(
+        userResults.filter((memory) => !profileFactKeys.has(normalizeFactText(getMemoryContent(memory)))),
+        getMemoryContent,
+      );
+    }
+
+    if (staticFactTexts.length > 0) {
       parts.push("\nUser Profile:");
-      staticFacts.slice(0, config.maxProfileItems).forEach((fact) => {
-        const text = extractFactText(fact);
+      staticFactTexts.forEach((text) => {
         parts.push(`- ${text}`);
       });
     }
 
-    if (dynamicFacts.length > 0) {
+    if (dynamicFactTexts.length > 0) {
       parts.push("\nRecent Context:");
-      dynamicFacts.slice(0, config.maxProfileItems).forEach((fact) => {
-        const text = extractFactText(fact);
+      dynamicFactTexts.forEach((text) => {
         parts.push(`- ${text}`);
       });
     }
   }
 
-  const projectResults = projectMemories.results || [];
   if (projectResults.length > 0) {
     parts.push("\nProject Knowledge:");
     projectResults.forEach((mem) => {
-      const similarity = Math.round((mem.similarity ?? 0) * 100);
-      const content = mem.memory || mem.chunk || "";
-      parts.push(`- [${similarity}%] ${content}`);
+      parts.push(formatMemoryLine(mem, useRelativeTime));
     });
   }
 
-  const userResults = userMemories.results || [];
   if (userResults.length > 0) {
     parts.push("\nRelevant Memories:");
     userResults.forEach((mem) => {
-      const similarity = Math.round((mem.similarity ?? 0) * 100);
-      const content = mem.memory || mem.chunk || "";
-      parts.push(`- [${similarity}%] ${content}`);
+      parts.push(formatMemoryLine(mem, useRelativeTime));
     });
   }
 
   if (parts.length === 1) {
     return "";
+  }
+
+  const footer = config.memoUsageFooter === true
+    ? formatMemoFooter({
+        profile: staticFactTexts.length + dynamicFactTexts.length,
+        projectMemories: projectResults.length,
+        relevantMemories: userResults.length,
+      })
+    : "";
+
+  if (footer) {
+    parts.push(`\n${footer}`);
   }
 
   return parts.join("\n");
