@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!.agents/skills", "!dist", "!tests/fixtures"]
+    "includes": ["**", "!.agents/skills", "!dist", "!assets", "!tests/fixtures"]
   },
   "formatter": {
     "enabled": true,
