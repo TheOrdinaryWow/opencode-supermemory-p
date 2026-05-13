@@ -6,6 +6,7 @@ import { getLogger } from "@logtape/logtape";
 import { ensureDirSync } from "fs-extra";
 
 import { findNearestMessageWithFields } from "@/compaction/finder";
+import { generateMessageId, generatePartId } from "@/shared/ids";
 
 const logger = getLogger(["supermemory", "compaction", "message-store"]);
 
@@ -36,18 +37,6 @@ export function getOrCreateMessageDir(sessionID: string): string {
   const directPath = join(MESSAGE_STORAGE, sessionID);
   ensureDirSync(directPath);
   return directPath;
-}
-
-export function generateMessageId(): string {
-  const timestamp = Date.now().toString(16);
-  const random = Math.random().toString(36).substring(2, 14);
-  return `msg_${timestamp}${random}`;
-}
-
-export function generatePartId(): string {
-  const timestamp = Date.now().toString(16);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `prt_${timestamp}${random}`;
 }
 
 export interface InjectOriginalMessage {

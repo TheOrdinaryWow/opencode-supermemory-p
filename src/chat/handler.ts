@@ -21,6 +21,7 @@ import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
 import type { SessionState } from "@/session/state";
+import { generatePartId } from "@/shared/ids";
 
 export interface ChatHandlerInput {
   sessionID: string;
@@ -107,7 +108,7 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     if (detectMemoryKeyword(userMessage, deps.config)) {
       deps.log("chat.message: memory keyword detected");
       const nudgePart: Part = {
-        id: `prt_supermemory-nudge-${Date.now()}`,
+        id: generatePartId(),
         sessionID: input.sessionID,
         messageID: output.message.id,
         type: "text",
@@ -148,7 +149,7 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
 
       if (memoryContext) {
         const contextPart: Part = {
-          id: `prt_supermemory-context-${Date.now()}`,
+          id: generatePartId(),
           sessionID: input.sessionID,
           messageID: output.message.id,
           type: "text",
