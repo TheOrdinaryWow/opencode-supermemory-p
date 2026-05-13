@@ -12,10 +12,11 @@ export interface Credentials {
   createdAt: string;
 }
 
-export function loadCredentials(): Credentials | null {
-  if (!existsSync(CREDENTIALS_FILE)) return null;
+export function loadCredentials(homeDir?: string): Credentials | null {
+  const file = homeDir ? join(homeDir, ".local", "share", "opencode-supermemory-p", "credentials.json") : CREDENTIALS_FILE;
+  if (!existsSync(file)) return null;
   try {
-    const content = readFileSync(CREDENTIALS_FILE, "utf-8");
+    const content = readFileSync(file, "utf-8");
     return JSON.parse(content) as Credentials;
   } catch {
     return null;

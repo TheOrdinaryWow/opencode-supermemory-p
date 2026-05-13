@@ -104,7 +104,7 @@ export function loadConfig(options: LoadConfigOptions = {}): SupermemoryConfig {
   } else if (typeof fileConfig.apiKey === "string") {
     apiKey = fileConfig.apiKey;
   } else {
-    apiKey = loadCredentials()?.apiKey;
+    apiKey = loadCredentials(options.homeDir)?.apiKey;
   }
 
   // Filter user-supplied keyword patterns down to the ones that compile,
