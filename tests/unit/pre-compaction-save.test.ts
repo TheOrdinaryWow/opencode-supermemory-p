@@ -3,12 +3,15 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import { handlePreCompactionSave, type PreSaveDeps } from "@/compaction/pre-save";
 import { DEFAULTS } from "@/config/defaults";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
-import type { Message } from "@/signal/extract";
+import { extractSignalContent, type Message } from "@/signal/extract";
 
 function makeConfig(overrides: Partial<SupermemoryConfig> = {}): SupermemoryConfig {
   return SupermemoryConfigSchema.parse({
     ...DEFAULTS,
     projectContainerTag: "project-tag",
+    // pre-save uses signalExtraction as a save-or-skip trigger; tests that aren't
+    // exercising that trigger opt out so the dump path is exercised directly.
+    signalExtraction: false,
     ...overrides,
   });
 }
@@ -18,7 +21,7 @@ function makeMessage(id: string, role: "user" | "assistant", text: string, parts
 }
 
 function makeDeps(messagesList: Message[], overrides: Partial<PreSaveDeps> = {}) {
-  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string }) => ({
+  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string; source?: string }) => ({
     ok: true as const,
     value: { success: true as const, id: "mem_1" },
   }));
@@ -27,6 +30,7 @@ function makeDeps(messagesList: Message[], overrides: Partial<PreSaveDeps> = {})
     config: makeConfig(),
     client: { addMemory } as unknown as PreSaveDeps["client"],
     sdkSession: { messages },
+    signalExtract: extractSignalContent,
     ...overrides,
   };
 
@@ -47,7 +51,7 @@ describe("handlePreCompactionSave", () => {
     expect(addMemory).toHaveBeenCalledTimes(1);
     expect(addMemory.mock.calls[0]?.[0]).toBe("[user] Remember this decision.\n[assistant] Saved.");
     expect(addMemory.mock.calls[0]?.[1]).toBe("project-tag");
-    expect(addMemory.mock.calls[0]?.[2]).toEqual({ type: "conversation" });
+    expect(addMemory.mock.calls[0]?.[2]).toEqual({ type: "conversation", source: "summary" });
     expect(input.output.context).toEqual(["Memories preserved in Supermemory."]);
   });
 
@@ -109,5 +113,33 @@ describe("handlePreCompactionSave", () => {
 
     expect(input.output.context).toEqual(["Memories preserved in Supermemory."]);
     expect(input.output.prompt).toBe("original prompt");
+  });
+
+  describe("handlePreCompactionSave signal triggering", () => {
+    it("skips save when signalExtraction is on and no signal keyword present", async () => {
+      const input = { sessionID: "ses_no_signal", output: { context: [] as string[] } };
+      const { deps, addMemory } = makeDeps([makeMessage("msg_1", "user", "nothing notable here")], {
+        config: makeConfig({ signalExtraction: true, signalKeywords: ["durable-signal"] }),
+      });
+
+      await handlePreCompactionSave(input, deps);
+
+      expect(addMemory).toHaveBeenCalledTimes(0);
+      expect(input.output.context).toContain("Memories preserved in Supermemory.");
+    });
+
+    it("saves last-N turns when signalExtraction triggers (signal present)", async () => {
+      const input = { sessionID: "ses_with_signal", output: { context: [] as string[] } };
+      const { deps, addMemory } = makeDeps(
+        [makeMessage("msg_1", "user", "remember this fact"), makeMessage("msg_2", "assistant", "noted")],
+        { config: makeConfig({ signalExtraction: true }) },
+      );
+
+      await handlePreCompactionSave(input, deps);
+
+      expect(addMemory).toHaveBeenCalledTimes(1);
+      // Full last-N dump including the assistant turn that followed the signal.
+      expect(addMemory.mock.calls[0]?.[0]).toBe("[user] remember this fact\n[assistant] noted");
+    });
   });
 });

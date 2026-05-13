@@ -24,6 +24,7 @@ import { detectRecallKeyword, runEveryMessageRecall } from "@/recall/every-messa
 import { shouldPeriodicReinject } from "@/recall/periodic";
 import type { SessionState } from "@/session/state";
 import { generatePartId } from "@/shared/ids";
+import { createPromptBoundary, sanitizeMemoryContextForInjection } from "@/shared/user-prompt";
 
 export interface ChatHandlerInput {
   sessionID: string;
@@ -102,24 +103,19 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
   try {
     if (!deps.isConfigured()) return;
 
-    const textParts = output.parts.filter((p): p is Part & { type: "text"; text: string } => p.type === "text");
+    const boundary = createPromptBoundary(output.parts, { sessionID: input.sessionID, role: "user" });
+    const userMessage = boundary.userText;
 
-    if (textParts.length === 0) {
-      deps.log("chat.message: no text parts found");
-      return;
-    }
-
-    const userMessage = textParts.map((p) => p.text).join("\n");
-
-    if (!userMessage.trim()) {
-      deps.log("chat.message: empty message, skipping");
+    if (!userMessage) {
+      deps.log("chat.message: empty message, skipping", { source: boundary.source });
       return;
     }
 
     deps.log("chat.message: processing", {
       messagePreview: userMessage.slice(0, 100),
       partsCount: output.parts.length,
-      textPartsCount: textParts.length,
+      source: boundary.source,
+      strippedMarkers: boundary.strippedMarkers,
     });
 
     if (detectMemoryKeyword(userMessage, deps.config)) {
@@ -169,12 +165,13 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
       const memoryContext = formatContextForPrompt(profile, userMemories, projectMemories);
 
       if (memoryContext) {
+        const safeMemoryContext = sanitizeMemoryContextForInjection(memoryContext);
         const contextPart: Part = {
           id: generatePartId(),
           sessionID: input.sessionID,
           messageID: output.message.id,
           type: "text",
-          text: memoryContext,
+          text: `<supermemory-context>\n${safeMemoryContext}\n</supermemory-context>`,
           synthetic: true,
         };
 

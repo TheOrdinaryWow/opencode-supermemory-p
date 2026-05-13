@@ -11,7 +11,7 @@ import { clampEntityContext } from "@/memory/entity-context";
 import type { AppError } from "@/shared/errors";
 import { err, ok, type Result } from "@/shared/result";
 import { withTimeout } from "@/shared/timeout";
-import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "@/types/index";
+import type { ConversationIngestResponse, ConversationMessage, MemorySource, MemoryType } from "@/types/index";
 
 const logger = getLogger(["supermemory", "memory", "client"]);
 
@@ -57,7 +57,7 @@ export type DeleteMemoryResult = { success: true };
 export type ListMemoriesResult = Awaited<ReturnType<Supermemory["memories"]["list"]>> & { success: true };
 export type IngestConversationResult = ConversationIngestResponse & { success: true; storedMemoryIds: string[] };
 
-type AddMemoryMetadata = { type?: MemoryType; tool?: string; [key: string]: unknown };
+type AddMemoryMetadata = { type?: MemoryType; tool?: string; source?: MemorySource; [key: string]: unknown };
 
 interface SupermemoryClientOptions {
   dedupCache?: DedupCache;

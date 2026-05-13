@@ -5,6 +5,7 @@ import { formatContextForPrompt } from "@/memory/context";
 import { stripInboundMetadata } from "@/memory/metadata-strip";
 import { generatePartId } from "@/shared/ids";
 import { withTimeout } from "@/shared/timeout";
+import { createPromptBoundary, sanitizeMemoryContextForInjection } from "@/shared/user-prompt";
 
 const RECALL_THROTTLE_MS = 2_000;
 const RECALL_TIMEOUT_MS = 2_000;
@@ -39,11 +40,8 @@ export function detectRecallKeyword(userMessage: string, config: Partial<Pick<Su
   return (config.recallKeywordPatterns ?? []).some((pattern) => pattern.trim().length > 0 && normalized.includes(pattern.toLowerCase()));
 }
 
-function getUserMessage(parts: Part[]): string {
-  return parts
-    .filter((part): part is Part & { type: "text"; text: string } => part.type === "text" && part.synthetic !== true)
-    .map((part) => part.text)
-    .join("\n");
+function getUserMessage(parts: Part[], sessionID: string): string {
+  return createPromptBoundary(parts, { sessionID, role: "user" }).userText;
 }
 
 export async function runEveryMessageRecall(
@@ -59,7 +57,7 @@ export async function runEveryMessageRecall(
   }
   lastRecallAt.set(input.sessionID, now);
 
-  const strippedQuery = stripInboundMetadata(getUserMessage(output.parts));
+  const strippedQuery = stripInboundMetadata(getUserMessage(output.parts, input.sessionID));
   if (!strippedQuery) {
     deps.log("chat.message: recall query empty after metadata stripping");
     return;
@@ -76,12 +74,14 @@ export async function runEveryMessageRecall(
 
     if (!memoryContext) return;
 
+    const safeMemoryContext = sanitizeMemoryContextForInjection(memoryContext);
+
     output.parts.unshift({
       id: generatePartId(),
       sessionID: input.sessionID,
       messageID: output.message.id,
       type: "text",
-      text: memoryContext,
+      text: `<supermemory-context>\n${safeMemoryContext}\n</supermemory-context>`,
       synthetic: true,
     });
   } catch (error) {

@@ -19,10 +19,25 @@ describe("signal extraction", () => {
     ]);
 
     expect(turns).toEqual([
-      { role: "user", text: "First request", messageId: "u1" },
-      { role: "assistant", text: "First reply", messageId: "a1" },
-      { role: "user", text: "Second request", messageId: "u2" },
+      { role: "user", text: "First request", messageId: "u1", sessionID: undefined, source: "raw-text" },
+      { role: "assistant", text: "First reply", messageId: "a1", sessionID: undefined, source: "raw-text" },
+      { role: "user", text: "Second request", messageId: "u2", sessionID: undefined, source: "raw-text" },
     ]);
+  });
+
+  it("propagates sessionID and source through Turn metadata", () => {
+    const message: Message = {
+      id: "u_omo",
+      role: "user",
+      sessionID: "ses_flow",
+      parts: [{ type: "text", text: "<command-instruction>x</command-instruction><user-request>real ask</user-request>" }],
+    };
+
+    const [turn] = groupIntoTurns([message]);
+
+    expect(turn?.text).toBe("real ask");
+    expect(turn?.sessionID).toBe("ses_flow");
+    expect(turn?.source).toBe("wrapped-user-content");
   });
 
   it("returns matching user turn indices", () => {

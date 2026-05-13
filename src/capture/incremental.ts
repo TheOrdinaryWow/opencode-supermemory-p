@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { SupermemoryConfig } from "@/config/schema";
 import type { SupermemoryClient } from "@/memory/client";
 import { getProjectTag } from "@/memory/tags";
+import { createPromptBoundary } from "@/shared/user-prompt";
 import type { extractSignalContent, Message, MessagePart } from "@/signal/extract";
 
 export interface EventMessageUpdated {
@@ -37,16 +38,16 @@ export async function handleMessageUpdatedForCapture(input: EventMessageUpdated,
     const messageID = info?.id;
     if (!sessionID || !messageID || info.role !== "assistant" || !info.finish) return;
 
-    const textParts = (info.parts ?? []).filter(
-      (part) => part.type === "text" && typeof part.text === "string" && !part.synthetic && !part.ignored,
-    );
-    if (textParts.length === 0) return;
+    const allParts = info.parts ?? [];
+    const boundary = createPromptBoundary(allParts, { sessionID, role: "assistant" });
+    if (!boundary.userText) return;
 
+    const cleanPart: MessagePart = { type: "text", text: boundary.userText };
     const message: Message = {
       id: messageID,
       sessionID,
       role: "assistant",
-      parts: textParts,
+      parts: [cleanPart],
     };
 
     const extractedContent = deps.config.signalExtraction ? deps.signalExtract([message], deps.config) : null;
@@ -56,17 +57,12 @@ export async function handleMessageUpdatedForCapture(input: EventMessageUpdated,
     const lastCaptured = await deps.tracker.getLastCaptured(sessionID, trackersDir);
     if (lastCaptured === messageID) return;
 
-    const rawContent =
-      extractedContent ??
-      textParts
-        .map((part) => part.text)
-        .join("\n")
-        .trim();
+    const rawContent = extractedContent ?? boundary.userText;
     if (rawContent.length === 0) return;
 
     const content = rawContent.slice(0, deps.config.maxCaptureChars);
     const projectTag = getProjectTag(deps.dataDir, deps.config);
-    await deps.client.addMemory(content, projectTag, { type: "conversation" });
+    await deps.client.addMemory(content, projectTag, { type: "conversation", source: "assistant" });
     await deps.tracker.appendCaptured(sessionID, messageID, trackersDir);
   } catch {
     // Event hooks should never interrupt OpenCode's main event flow.

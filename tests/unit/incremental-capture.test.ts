@@ -35,7 +35,7 @@ function makeDeps(overrides: Partial<IncrementalCaptureDeps> = {}) {
   const getLastCaptured = mock(async () => null);
   const appendCaptured = mock(async () => undefined);
   const pruneOldTrackers = mock(async () => 0);
-  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string }) => ({
+  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string; source?: string }) => ({
     success: true as const,
     id: "mem_1",
   }));
@@ -59,7 +59,11 @@ describe("handleMessageUpdatedForCapture", () => {
     await handleMessageUpdatedForCapture(makeEvent(), deps);
 
     expect(addMemory).toHaveBeenCalledTimes(1);
-    expect(addMemory.mock.calls[0]).toEqual(["Remember this stable project fact.", "project-tag", { type: "conversation" }]);
+    expect(addMemory.mock.calls[0]).toEqual([
+      "Remember this stable project fact.",
+      "project-tag",
+      { type: "conversation", source: "assistant" },
+    ]);
   });
 
   it("skips messages with no usable text parts", async () => {
@@ -112,7 +116,7 @@ describe("handleMessageUpdatedForCapture", () => {
   });
 
   it("swallows tracker and client errors", async () => {
-    const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string }) => {
+    const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string; source?: string }) => {
       throw new Error("network down");
     });
     const { deps } = makeDeps({ client: { addMemory } as unknown as IncrementalCaptureDeps["client"] });

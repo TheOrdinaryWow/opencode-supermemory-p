@@ -11,7 +11,7 @@ async function flushCaptureQueue(): Promise<void> {
 
 describe("incremental capture event hook", () => {
   it("dispatches only completed assistant message.updated events", async () => {
-    const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string }) => ({
+    const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string; source?: string }) => ({
       success: true as const,
       id: "mem_1",
     }));

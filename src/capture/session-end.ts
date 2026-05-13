@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import type { SupermemoryConfig } from "@/config/schema";
 import { type extractSignalContent, groupIntoTurns, type Message, type MessagePart, type Turn } from "@/signal/extract";
+import type { MemorySource } from "@/types/index";
 
 export interface EventSessionDeleted {
   event: {
@@ -39,7 +40,7 @@ type SessionMessagesResponse = SessionMessageRecord[] | { data?: SessionMessageR
 export interface SessionEndDeps {
   config: SupermemoryConfig;
   client: {
-    addMemory(content: string, containerTag: string, metadata?: { type: "conversation" }): Promise<unknown>;
+    addMemory(content: string, containerTag: string, metadata?: { type: "conversation"; source?: MemorySource }): Promise<unknown>;
   };
   sdkClient: {
     session: {
@@ -78,7 +79,7 @@ export async function handleSessionEnd(input: EventSessionDeleted | EventSession
     const content = rawContent.slice(0, deps.config.maxCaptureChars * 4).trim();
     if (content.length === 0) return;
 
-    await deps.client.addMemory(content, deps.projectTag, { type: "conversation" });
+    await deps.client.addMemory(content, deps.projectTag, { type: "conversation", source: "summary" });
     savedSessions.add(sessionID);
 
     if (input.event.type === "session.deleted") {

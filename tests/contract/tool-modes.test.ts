@@ -308,7 +308,7 @@ describe("tool.execute mode=add", () => {
     // Note: content is passed through stripPrivateContent → unchanged here, plain text.
     expect(clientCalls.addMemory[0]?.args[0]).toBe("hello world");
     expect(clientCalls.addMemory[0]?.args[1]).toBe(MOCK_PROJECT_TAG);
-    expect(clientCalls.addMemory[0]?.args[2]).toEqual({ type: "preference" });
+    expect(clientCalls.addMemory[0]?.args[2]).toEqual({ type: "preference", source: "user" });
   });
 
   it("scope=user routes to the user tag, scope=project routes to the project tag", async () => {

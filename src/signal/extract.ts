@@ -1,3 +1,5 @@
+import { createPromptBoundary, type SourceKind } from "@/shared/user-prompt";
+
 const MAX_SIGNAL_TURN_CHARS = 50 * 1024;
 const COMMAND_PATTERN = /^[/\\][a-z-]+/i;
 
@@ -20,6 +22,10 @@ export interface Turn {
   role: "user" | "assistant";
   text: string;
   messageId: string;
+  /** Session this turn belongs to, propagated through `PromptBoundary`. */
+  sessionID?: string;
+  /** How the turn's text was extracted from the original parts. */
+  source?: SourceKind;
 }
 
 export interface SignalExtractionConfig {
@@ -28,15 +34,16 @@ export interface SignalExtractionConfig {
 }
 
 export function groupIntoTurns(messages: Message[]): Turn[] {
-  return messages.map((message) => ({
-    role: message.role,
-    text: message.parts
-      .filter((part) => part.type === "text" && typeof part.text === "string" && !part.synthetic && !part.ignored)
-      .map((part) => part.text)
-      .join("\n")
-      .trim(),
-    messageId: message.id,
-  }));
+  return messages.map((message) => {
+    const boundary = createPromptBoundary(message.parts, { sessionID: message.sessionID, role: message.role });
+    return {
+      role: message.role,
+      text: boundary.userText,
+      messageId: message.id,
+      sessionID: boundary.sessionID,
+      source: boundary.source,
+    };
+  });
 }
 
 export function findSignalTurns(turns: Turn[], keywords: string[]): number[] {

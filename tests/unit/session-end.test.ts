@@ -32,7 +32,7 @@ function makeMessage(id: string, role: "user" | "assistant", text: string) {
 function makeDeps(overrides: Partial<SessionEndDeps> = {}) {
   const getLastCaptured = mock(async () => null);
   const pruneOldTrackers = mock(async () => 0);
-  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string }) => ({
+  const addMemory = mock(async (_content: string, _containerTag: string, _metadata?: { type: string; source?: string }) => ({
     success: true as const,
     id: "mem_1",
   }));
@@ -63,7 +63,7 @@ describe("handleSessionEnd", () => {
     expect(addMemory).toHaveBeenCalledTimes(1);
     expect(addMemory.mock.calls[0]?.[0]).toContain("[user] Remember this project decision.");
     expect(addMemory.mock.calls[0]?.[1]).toBe("project-tag");
-    expect(addMemory.mock.calls[0]?.[2]).toEqual({ type: "conversation" });
+    expect(addMemory.mock.calls[0]?.[2]).toEqual({ type: "conversation", source: "summary" });
   });
 
   it("deduplicates idle and deleted events for the same session", async () => {
