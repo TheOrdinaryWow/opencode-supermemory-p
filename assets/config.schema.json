@@ -38,6 +38,15 @@
       "default": "opencode",
       "type": "string"
     },
+    "projectTagStrategy": {
+      "default": "hashGitRepoName",
+      "type": "string",
+      "enum": [
+        "hashDirectory",
+        "hashGitRepoName",
+        "RawGitRepoName"
+      ]
+    },
     "userContainerTag": {
       "type": "string"
     },

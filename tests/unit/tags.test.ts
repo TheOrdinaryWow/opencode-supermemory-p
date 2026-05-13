@@ -12,39 +12,59 @@ const mockConfig: {
   containerTagPrefix: string;
   userContainerTag: string | undefined;
   projectContainerTag: string | undefined;
+  projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName";
 } = {
   containerTagPrefix: "opencode",
   userContainerTag: undefined,
   projectContainerTag: undefined,
+  projectTagStrategy: "hashGitRepoName",
 };
 
 // Response slot for `git config user.email` — string yields stdout, Error
 // throws (mirroring real execSync), function increments a counter.
-type GitEmailResponder = string | Error | (() => string);
-let gitEmailResponder: GitEmailResponder | null = null;
+type GitResponder = string | Error | (() => string);
+let gitEmailResponder: GitResponder | null = null;
 let gitEmailCallCount = 0;
 
-// Patch node:child_process — intercept ONLY `git config user.email` and
-// pass every other command through to the real execSync. This keeps
+// Response slot for `git config --get remote.origin.url`. Default to an
+// Error so getProjectTag's git-backed strategies naturally fall back to
+// hashDirectory unless a test wires up a real remote URL.
+let gitRemoteResponder: GitResponder = new Error("not a git repo");
+let gitRemoteCallCount = 0;
+
+// Patch node:child_process — intercept the two git calls used by tags.ts
+// and pass every other command through to the real execSync. This keeps
 // concurrent test files that depend on real execSync (e.g. running the
 // git fixture setup.sh) working when bun test parallelizes files.
 mock.module("node:child_process", () => {
   const real = require("node:child_process") as typeof import("node:child_process");
+  const runResponder = (responder: GitResponder): string => {
+    if (responder instanceof Error) throw responder;
+    if (typeof responder === "function") return responder();
+    return responder;
+  };
   return {
     ...real,
     execSync: (command: string, options?: unknown) => {
-      // Narrow match: tags.ts calls execSync with NO options. The git-fixture
-      // sanity test (tests/helpers/__sanity__.test.ts) calls the same command
-      // with { cwd: repo } to probe a tmp repo — those calls must pass through.
+      // Narrow match: tags.ts calls execSync with NO options for the email
+      // lookup. The git-fixture sanity test (tests/helpers/__sanity__.test.ts)
+      // calls the same command with { cwd: repo } to probe a tmp repo —
+      // those calls must pass through.
       const hasCwd = typeof options === "object" && options !== null && "cwd" in (options as Record<string, unknown>);
       if (command === "git config user.email" && !hasCwd) {
         gitEmailCallCount++;
         if (gitEmailResponder === null) {
           throw new Error("test bug: gitEmailResponder not configured");
         }
-        if (gitEmailResponder instanceof Error) throw gitEmailResponder;
-        if (typeof gitEmailResponder === "function") return gitEmailResponder();
-        return gitEmailResponder;
+        return runResponder(gitEmailResponder);
+      }
+      // tags.ts ALWAYS calls the remote lookup with { cwd: directory }, so
+      // we match by command name only. Any other execSync caller that
+      // happens to ask for the remote URL will also be intercepted, which
+      // is acceptable for this test file's scope.
+      if (command === "git config --get remote.origin.url") {
+        gitRemoteCallCount++;
+        return runResponder(gitRemoteResponder);
       }
       // Pass-through so unrelated execSync calls in other files behave normally.
       return (real.execSync as (cmd: string, opts?: unknown) => string | Buffer)(command, options);
@@ -67,8 +87,11 @@ beforeEach(() => {
   mockConfig.containerTagPrefix = "opencode";
   mockConfig.userContainerTag = undefined;
   mockConfig.projectContainerTag = undefined;
+  mockConfig.projectTagStrategy = "hashGitRepoName";
   gitEmailResponder = null;
   gitEmailCallCount = 0;
+  gitRemoteResponder = new Error("not a git repo");
+  gitRemoteCallCount = 0;
   // T14: reset the in-process git-email cache between tests so each case
   // sees a fresh execSync call path. Without this, cached results from
   // earlier tests would mask the mocked responder.
@@ -142,28 +165,160 @@ describe("getUserTag", () => {
   });
 });
 
+describe("parseGitRepoName", () => {
+  it("extracts owner/repo from HTTPS URLs (with and without .git)", () => {
+    expect(tags.parseGitRepoName("https://github.com/TheOrdinaryWow/abc")).toBe("TheOrdinaryWow/abc");
+    expect(tags.parseGitRepoName("https://github.com/TheOrdinaryWow/abc.git")).toBe("TheOrdinaryWow/abc");
+  });
+
+  it("extracts owner/repo from SSH URLs (with and without .git)", () => {
+    expect(tags.parseGitRepoName("git@github.com:TheOrdinaryWow/abc.git")).toBe("TheOrdinaryWow/abc");
+    expect(tags.parseGitRepoName("git@github.com:TheOrdinaryWow/abc")).toBe("TheOrdinaryWow/abc");
+  });
+
+  it("extracts owner/repo from ssh:// URLs, including non-default ports", () => {
+    expect(tags.parseGitRepoName("ssh://git@github.com/owner/repo.git")).toBe("owner/repo");
+    // Pin the port-handling fix: the SCP-like SSH regex must NOT incorrectly
+    // gobble the port number when a real ssh:// URL is given.
+    expect(tags.parseGitRepoName("ssh://git@gitserver:2222/owner/repo.git")).toBe("owner/repo");
+  });
+
+  it("extracts owner/repo from git:// protocol URLs", () => {
+    expect(tags.parseGitRepoName("git://github.com/owner/repo.git")).toBe("owner/repo");
+  });
+
+  it("extracts nested paths (gitlab groups, gitea sub-orgs, etc.)", () => {
+    expect(tags.parseGitRepoName("https://gitlab.com/group/subgroup/repo.git")).toBe("group/subgroup/repo");
+  });
+
+  it("returns null for empty, malformed, or owner-only inputs", () => {
+    expect(tags.parseGitRepoName("")).toBeNull();
+    expect(tags.parseGitRepoName("  \n")).toBeNull();
+    expect(tags.parseGitRepoName("not a url")).toBeNull();
+    expect(tags.parseGitRepoName("https://example.com/owner-only")).toBeNull();
+    // Degenerate input that URL-parses with empty host. Pin: must not slip through.
+    expect(tags.parseGitRepoName("foo:bar/baz")).toBeNull();
+  });
+});
+
 describe("getProjectTag", () => {
   it("returns config.projectContainerTag verbatim when explicitly set", () => {
     mockConfig.projectContainerTag = "my-project-tag";
     // Argument is ignored entirely when the override is set.
     expect(tags.getProjectTag("/whatever/path", mockConfig)).toBe("my-project-tag");
+    expect(gitRemoteCallCount).toBe(0);
   });
 
-  it("auto-generates a project tag from `{prefix}_project_{sha256(directory).slice(0,16)}` (byte-identical)", () => {
+  it("hashDirectory strategy: hashes the directory verbatim — byte-identical", () => {
+    mockConfig.projectTagStrategy = "hashDirectory";
     // sha256("/test/project").slice(0,16) == 43ac6f583851e4e9
     expect(tags.getProjectTag("/test/project", mockConfig)).toMatchInlineSnapshot(`"opencode_project_43ac6f583851e4e9"`);
+    // hashDirectory must not consult git at all.
+    expect(gitRemoteCallCount).toBe(0);
   });
 
-  it("hashes the directory verbatim — different paths produce different tags", () => {
+  it("hashDirectory: different paths produce different tags", () => {
+    mockConfig.projectTagStrategy = "hashDirectory";
     const a = tags.getProjectTag("/test/project", mockConfig);
     const b = tags.getProjectTag("/test/project/", mockConfig);
     expect(a).not.toBe(b);
+  });
+
+  it("hashGitRepoName strategy: hashes the parsed owner/repo from the remote URL", () => {
+    mockConfig.projectTagStrategy = "hashGitRepoName";
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    // sha256("TheOrdinaryWow/abc").slice(0,16) == 199b418381889efa
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_199b418381889efa");
+  });
+
+  it("hashGitRepoName: identical repo URLs produce identical tags regardless of directory", () => {
+    mockConfig.projectTagStrategy = "hashGitRepoName";
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    const a = tags.getProjectTag("/path/one", mockConfig);
+    tags.resetTagsCache(); // bust the per-directory cache so the second call re-queries.
+    const b = tags.getProjectTag("/path/two", mockConfig);
+    expect(a).toBe(b);
+  });
+
+  it("hashGitRepoName: SSH and HTTPS remotes for the same repo collapse to the same tag", () => {
+    mockConfig.projectTagStrategy = "hashGitRepoName";
+
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    const httpsTag = tags.getProjectTag("/path/one", mockConfig);
+
+    tags.resetTagsCache();
+    gitRemoteResponder = "git@github.com:TheOrdinaryWow/abc.git\n";
+    const sshTag = tags.getProjectTag("/path/one", mockConfig);
+
+    expect(httpsTag).toBe(sshTag);
+  });
+
+  it("hashGitRepoName: falls back to hashDirectory when not in a git repo", () => {
+    mockConfig.projectTagStrategy = "hashGitRepoName";
+    gitRemoteResponder = new Error("fatal: not a git repository");
+    // Must match the hashDirectory snapshot byte-for-byte.
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_43ac6f583851e4e9");
+  });
+
+  it("hashGitRepoName: falls back to hashDirectory when remote URL is unparseable", () => {
+    mockConfig.projectTagStrategy = "hashGitRepoName";
+    gitRemoteResponder = "not a url\n";
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_43ac6f583851e4e9");
+  });
+
+  it("RawGitRepoName strategy: uses owner.repo (slashes replaced with underlines)", () => {
+    mockConfig.projectTagStrategy = "RawGitRepoName";
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_TheOrdinaryWow_abc");
+  });
+
+  it("RawGitRepoName: nested groups flatten underlines", () => {
+    mockConfig.projectTagStrategy = "RawGitRepoName";
+    gitRemoteResponder = "https://gitlab.com/group/subgroup/repo.git\n";
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_group_subgroup_repo");
+  });
+
+  it("RawGitRepoName: falls back to hashDirectory when not in a git repo", () => {
+    mockConfig.projectTagStrategy = "RawGitRepoName";
+    gitRemoteResponder = new Error("fatal: not a git repository");
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_43ac6f583851e4e9");
+  });
+
+  it("honors containerTagPrefix across all strategies", () => {
+    mockConfig.containerTagPrefix = "my-prefix-";
+
+    mockConfig.projectTagStrategy = "hashDirectory";
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("my-prefix-_project_43ac6f583851e4e9");
+
+    tags.resetTagsCache();
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    mockConfig.projectTagStrategy = "RawGitRepoName";
+    expect(tags.getProjectTag("/test/project", mockConfig)).toBe("my-prefix-_project_TheOrdinaryWow_abc");
+  });
+});
+
+describe("getGitRepoName", () => {
+  it("caches per-directory: two calls with the same directory trigger execSync once", () => {
+    gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
+    tags.getGitRepoName("/test/project");
+    tags.getGitRepoName("/test/project");
+    expect(gitRemoteCallCount).toBe(1);
+  });
+
+  it("caches the null result so repeated misses do not re-shell to git", () => {
+    gitRemoteResponder = new Error("not a git repo");
+    expect(tags.getGitRepoName("/test/project")).toBeNull();
+    expect(tags.getGitRepoName("/test/project")).toBeNull();
+    expect(gitRemoteCallCount).toBe(1);
   });
 });
 
 describe("getTags", () => {
   it("returns an object with both `user` and `project` keys in that exact order", () => {
     gitEmailResponder = "test@example.com\n";
+    // Force the project tag to use hashDirectory so the snapshot stays stable
+    // regardless of whether the test runner is inside a git checkout.
+    mockConfig.projectTagStrategy = "hashDirectory";
     const result = { user: tags.getUserTag(mockConfig), project: tags.getProjectTag("/test/project", mockConfig) };
     expect(Object.keys(result)).toEqual(["user", "project"]);
     expect(result.user).toBe("opencode_user_973dfe463ec85785");
@@ -185,14 +340,16 @@ describe("in-process cache for git email (T14)", () => {
     expect(gitEmailCallCount).toBe(1);
   });
 
-  it("getTags() hits getGitEmail exactly once per call (project tag does not consult git)", () => {
+  it("getTags() hits getGitEmail exactly once per call", () => {
     gitEmailResponder = "test@example.com\n";
 
+    // getTags() reads the REAL getConfig() (not mockConfig), so we can't pin
+    // the strategy from here. The assertion below only counts `user.email`
+    // lookups — git remote URL lookups are tracked separately and are
+    // irrelevant to this test's invariant.
     tags.getTags("/test/project");
 
-    // getTags() -> getUserTag() -> getGitEmail() == 1 call.
-    // getProjectTag does NOT touch git, so a single getTags() yields one
-    // git call total.
+    // getTags() -> getUserTag() -> getGitEmail() == exactly 1 user.email call.
     expect(gitEmailCallCount).toBe(1);
   });
 

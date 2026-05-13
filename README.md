@@ -195,10 +195,12 @@ The `supermemory` tool is available to the agent:
 
 ## Memory Scoping
 
-| Scope   | Tag                                    | Persists     |
-| ------- | -------------------------------------- | ------------ |
-| User    | `opencode_user_{sha256(git email)}`    | All projects |
-| Project | `opencode_project_{sha256(directory)}` | This project |
+| Scope   | Default tag                                  | Persists     |
+| ------- | -------------------------------------------- | ------------ |
+| User    | `opencode_user_{sha256(git_email)}`          | All projects |
+| Project | `opencode_project_{sha256(owner/repo)}`      | This project |
+
+The project tag formula is configurable via [`projectTagStrategy`](#project-tag-strategy).
 
 ## Configuration
 
@@ -236,6 +238,9 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
   // Optional: Set exact project container tag (overrides auto-generated tag)
   "projectContainerTag": "my-project-tag",
 
+  // Project tag generation strategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName"
+  "projectTagStrategy": "hashGitRepoName",
+
   // Extra keyword patterns for memory detection (regex)
   "keywordPatterns": ["log\\s+this", "write\\s+down"],
 
@@ -248,10 +253,10 @@ All fields optional. Env var `SUPERMEMORY_API_KEY` takes precedence over config 
 
 ### Container Tag Selection
 
-By default, container tags are auto-generated using `containerTagPrefix` plus a hash:
+By default, container tags are auto-generated using `containerTagPrefix`:
 
-- User tag: `{prefix}_user_{hash(git_email)}`
-- Project tag: `{prefix}_project_{hash(directory)}`
+- User tag: `{prefix}_user_{sha256(git_email)}`
+- Project tag: depends on [`projectTagStrategy`](#project-tag-strategy) (defaults to `hashGitRepoName`)
 
 You can override this by specifying exact container tags:
 
@@ -272,6 +277,38 @@ This is useful when you want to:
 - Organize memories using your own naming scheme
 - Integrate with existing Supermemory container tags from other tools
 
+### Project Tag Strategy
+
+When `projectContainerTag` is **not** set, the project tag is auto-generated according to `projectTagStrategy`:
+
+| Strategy           | Output                                                | Notes                                                          |
+| ------------------ | ----------------------------------------------------- | -------------------------------------------------------------- |
+| `hashGitRepoName`  | `{prefix}_project_{sha256(owner/repo)}`               | **Default.** Stable across clones / machines for the same repo |
+| `RawGitRepoName`   | `{prefix}_project_{owner.repo}`                       | Human-readable; `/` becomes `_` to keep the tag path-safe      |
+| `hashDirectory`    | `{prefix}_project_{sha256(absolute_directory_path)}`  | Pre-existing behavior; tag changes if you move the checkout    |
+
+Both git-backed strategies read `git config --get remote.origin.url` from the project directory and **fall back to `hashDirectory`** when:
+
+- the directory is not inside a git repo, or
+- the repo has no `origin` remote, or
+- the remote URL cannot be parsed into an `owner/repo` shape.
+
+Example resolution (HTTPS or SSH remote of `https://github.com/TheOrdinaryWow/abc`, prefix `my-prefix-`):
+
+```jsonc
+{
+  "containerTagPrefix": "my-prefix-",
+  "projectTagStrategy": "hashGitRepoName"
+}
+// → my-prefix-_project_{sha256("TheOrdinaryWow/abc")}
+
+{
+  "containerTagPrefix": "my-prefix-",
+  "projectTagStrategy": "RawGitRepoName"
+}
+// → my-prefix-_project_TheOrdinaryWow.abc
+```
+
 ## Usage with Oh My OpenAgent
 
 If you're using [Oh My OpenAgent](https://github.com/code-yeongyu/oh-my-openagent), disable its built-in auto-compact hook to let supermemory handle context compaction:
@@ -290,7 +327,7 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 bun install
 bun run build       # tsdown bundles dist/index.js (plugin) + dist/cli.js (CLI)
 bun run typecheck
-bun test            # 214 tests across unit, contract, and integration suites
+bun test            # 228 tests across unit, contract, and integration suites
 bun run check       # biome lint + format with --write
 ```
 

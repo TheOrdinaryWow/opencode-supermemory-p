@@ -38,6 +38,7 @@ export const DEFAULTS = {
   maxProfileItems: 5,
   injectProfile: true,
   containerTagPrefix: "opencode",
+  projectTagStrategy: "hashGitRepoName",
   filterPrompt:
     "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
   keywordPatterns: [] as string[],

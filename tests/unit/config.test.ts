@@ -30,6 +30,7 @@ interface ConfigEvalResult {
     maxProfileItems: number;
     injectProfile: boolean;
     containerTagPrefix: string;
+    projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName";
     userContainerTag?: string | null;
     projectContainerTag?: string | null;
     filterPrompt: string;
@@ -221,6 +222,7 @@ describe("loadConfig — fixture round-trips", () => {
       maxProfileItems: 5,
       injectProfile: true,
       containerTagPrefix: "opencode",
+      projectTagStrategy: "hashGitRepoName",
       filterPrompt:
         "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
       keywordPatterns: [
@@ -394,6 +396,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
     expect(result.maxProfileItems).toBe(5);
     expect(result.injectProfile).toBe(true);
     expect(result.containerTagPrefix).toBe("opencode");
+    expect(result.projectTagStrategy).toBe("hashGitRepoName");
     expect(result.compactionThreshold).toBe(0.8);
     expect(result.keywordPatterns).toEqual([]);
   });
@@ -411,6 +414,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
       filterPrompt: 123,
       keywordPatterns: "not-an-array",
       compactionThreshold: { nested: true },
+      projectTagStrategy: "not-a-real-strategy",
     });
     expect(result.similarityThreshold).toBe(0.6);
     expect(result.maxMemories).toBe(5);
@@ -418,6 +422,7 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
     expect(result.maxProfileItems).toBe(5);
     expect(result.injectProfile).toBe(true);
     expect(result.containerTagPrefix).toBe("opencode");
+    expect(result.projectTagStrategy).toBe("hashGitRepoName");
     expect(result.filterPrompt).toContain("You are a stateful coding agent");
     expect(result.keywordPatterns).toEqual([]);
     expect(result.compactionThreshold).toBe(0.8);
