@@ -20,18 +20,18 @@ import { DEFAULTS } from "@/config/defaults";
  * `undefined` explicitly.
  */
 export const SupermemoryConfigSchema = z.object({
-  apiKey: z.string().optional(),
-  similarityThreshold: z.number().catch(DEFAULTS.similarityThreshold),
-  maxMemories: z.number().catch(DEFAULTS.maxMemories),
-  maxProjectMemories: z.number().catch(DEFAULTS.maxProjectMemories),
-  maxProfileItems: z.number().catch(DEFAULTS.maxProfileItems),
+  apiKey: z.string().startsWith("sm_").optional(),
+  similarityThreshold: z.number().gt(0).lte(1).catch(DEFAULTS.similarityThreshold),
+  maxMemories: z.number().positive().catch(DEFAULTS.maxMemories),
+  maxProjectMemories: z.number().positive().catch(DEFAULTS.maxProjectMemories),
+  maxProfileItems: z.number().positive().catch(DEFAULTS.maxProfileItems),
   injectProfile: z.boolean().catch(DEFAULTS.injectProfile),
   containerTagPrefix: z.string().catch(DEFAULTS.containerTagPrefix),
   userContainerTag: z.string().optional(),
   projectContainerTag: z.string().optional(),
   filterPrompt: z.string().catch(DEFAULTS.filterPrompt),
-  keywordPatterns: z.array(z.string()).catch([]),
-  compactionThreshold: z.number().gt(0).max(1).catch(DEFAULTS.compactionThreshold),
+  keywordPatterns: z.array(z.string()).catch(DEFAULTS.keywordPatterns),
+  compactionThreshold: z.number().gt(0).lte(1).catch(DEFAULTS.compactionThreshold),
 });
 
 export type SupermemoryConfig = z.infer<typeof SupermemoryConfigSchema>;

@@ -1,0 +1,67 @@
+{
+  "$id": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/main/schema.json",
+  "title": "opencode-supermemory-p config",
+  "description": "Configuration for opencode-supermemory-p.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "apiKey": {
+      "type": "string",
+      "pattern": "^sm_.*"
+    },
+    "similarityThreshold": {
+      "default": 0.6,
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "maxMemories": {
+      "default": 5,
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "maxProjectMemories": {
+      "default": 10,
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "maxProfileItems": {
+      "default": 5,
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "injectProfile": {
+      "default": true,
+      "type": "boolean"
+    },
+    "containerTagPrefix": {
+      "default": "opencode",
+      "type": "string"
+    },
+    "userContainerTag": {
+      "type": "string"
+    },
+    "projectContainerTag": {
+      "type": "string"
+    },
+    "filterPrompt": {
+      "default": "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
+      "type": "string"
+    },
+    "keywordPatterns": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "compactionThreshold": {
+      "default": 0.8,
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}

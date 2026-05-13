@@ -9,7 +9,9 @@
     "opencode-supermemory-p": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsdown",
+    "gen:schema": "bun scripts/gen-schema.ts",
+    "check:schema": "bun scripts/gen-schema.ts && git diff --exit-code assets/config.schema.json",
+    "build": "bun run gen:schema && tsdown",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "check": "biome check --write",
@@ -58,6 +60,7 @@
     ]
   },
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ]
 }

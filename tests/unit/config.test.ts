@@ -485,7 +485,10 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
     const tmpHome = createTmpDir("loader-regex");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
-      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory-p.jsonc"), '{"keywordPatterns":["valid_one","[unclosed","valid_two"]}');
+      writeFileSync(
+        join(tmpHome, ".config", "opencode", "supermemory-p.jsonc"),
+        '{"keywordPatterns":["valid_one","[unclosed","valid_two"]}',
+      );
       const result = loadConfig({ homeDir: tmpHome, env: {} });
       expect(result.keywordPatterns).toContain("remember"); // default survives
       expect(result.keywordPatterns).toContain("valid_one");

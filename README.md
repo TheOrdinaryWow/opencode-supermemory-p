@@ -21,7 +21,7 @@ export SUPERMEMORY_API_KEY="sm_..."
 **Or let your agent do it** - paste this into OpenCode:
 
 ```
-Install opencode-supermemory-p by following https://github.com/TheOrdinaryWow/opencode-supermemory-p/raw/refs/heads/main/README.md
+Install opencode-supermemory-p by following https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/README.md
 ```
 
 ### For LLM Agents
@@ -206,6 +206,9 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
 
 ```jsonc
 {
+  // Editor completion & validation (optional)
+  "$schema": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/assets/config.schema.json",
+
   // API key (can also use SUPERMEMORY_API_KEY env var)
   "apiKey": "sm_...",
 
