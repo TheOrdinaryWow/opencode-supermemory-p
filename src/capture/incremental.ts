@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { SupermemoryConfig } from "@/config/schema";
 import type { SupermemoryClient } from "@/memory/client";
 import { getProjectTag } from "@/memory/tags";
-import { type Message, type MessagePart, extractSignalContent } from "@/signal/extract";
+import type { extractSignalContent, Message, MessagePart } from "@/signal/extract";
 
 export interface EventMessageUpdated {
   event: {
@@ -28,10 +28,7 @@ export interface IncrementalCaptureDeps {
   dataDir: string;
 }
 
-export async function handleMessageUpdatedForCapture(
-  input: EventMessageUpdated,
-  deps: IncrementalCaptureDeps,
-): Promise<void> {
+export async function handleMessageUpdatedForCapture(input: EventMessageUpdated, deps: IncrementalCaptureDeps): Promise<void> {
   try {
     if (deps.config.incrementalCapture === false) return;
 
@@ -59,7 +56,12 @@ export async function handleMessageUpdatedForCapture(
     const lastCaptured = await deps.tracker.getLastCaptured(sessionID, trackersDir);
     if (lastCaptured === messageID) return;
 
-    const rawContent = extractedContent ?? textParts.map((part) => part.text).join("\n").trim();
+    const rawContent =
+      extractedContent ??
+      textParts
+        .map((part) => part.text)
+        .join("\n")
+        .trim();
     if (rawContent.length === 0) return;
 
     const content = rawContent.slice(0, deps.config.maxCaptureChars);

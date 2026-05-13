@@ -1,10 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-  DEFAULT_ENTITY_CONTEXT,
-  MAX_ENTITY_CONTEXT_LENGTH,
-  clampEntityContext,
-} from "../../src/memory/entity-context";
+import { clampEntityContext, DEFAULT_ENTITY_CONTEXT, MAX_ENTITY_CONTEXT_LENGTH } from "../../src/memory/entity-context";
 
 describe("entity-context", () => {
   it("keeps DEFAULT_ENTITY_CONTEXT within the configured limit", () => {

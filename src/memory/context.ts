@@ -107,13 +107,14 @@ export function formatContextForPrompt(
     return "";
   }
 
-  const footer = config.memoUsageFooter === true
-    ? formatMemoFooter({
-        profile: staticFactTexts.length + dynamicFactTexts.length,
-        projectMemories: projectResults.length,
-        relevantMemories: userResults.length,
-      })
-    : "";
+  const footer =
+    config.memoUsageFooter === true
+      ? formatMemoFooter({
+          profile: staticFactTexts.length + dynamicFactTexts.length,
+          projectMemories: projectResults.length,
+          relevantMemories: userResults.length,
+        })
+      : "";
 
   if (footer) {
     parts.push(`\n${footer}`);

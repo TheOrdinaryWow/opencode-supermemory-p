@@ -1,8 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 
-import { DEFAULTS } from "@/config/defaults";
-import { SupermemoryConfigSchema, type SupermemoryConfig } from "@/config/schema";
 import { handlePreCompactionSave, type PreSaveDeps } from "@/compaction/pre-save";
+import { DEFAULTS } from "@/config/defaults";
+import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 import type { Message } from "@/signal/extract";
 
 function makeConfig(overrides: Partial<SupermemoryConfig> = {}): SupermemoryConfig {

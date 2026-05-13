@@ -70,7 +70,8 @@ export interface ChatHandlerDeps {
     | "recallKeywordPatterns"
     | "everyMessageRecall"
     | "reinjectEveryN"
-  > & Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">>;
+  > &
+    Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">>;
   tags: { user: string; project: string };
   injectedSessions: Pick<SessionState, "markInjected" | "wasInjected">;
   pendingReinjectSessions?: Pick<Set<string>, "delete" | "has">;

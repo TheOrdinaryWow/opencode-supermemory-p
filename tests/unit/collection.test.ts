@@ -8,7 +8,7 @@ describe("dedupe", () => {
   });
 
   it("deduplicates values using a case-insensitive normalized key", () => {
-    expect(dedupe(["Alpha", "alpha", "BETA", "beta"])) .toEqual(["Alpha", "BETA"]);
+    expect(dedupe(["Alpha", "alpha", "BETA", "beta"])).toEqual(["Alpha", "BETA"]);
   });
 
   it("skips empty and whitespace-only keys", () => {

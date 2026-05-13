@@ -1,4 +1,4 @@
-import { describe, expect, it, setSystemTime, afterEach } from "bun:test";
+import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
 
 import type { Part } from "@opencode-ai/sdk";
 

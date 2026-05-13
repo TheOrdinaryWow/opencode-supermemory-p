@@ -29,7 +29,10 @@ export async function handleEvent(input: EventInput, deps: EventDeps): Promise<v
   const props = input.event.properties as Record<string, unknown> | undefined;
   const info = props?.info as { role?: string; finish?: unknown } | undefined;
   if (input.event.type === "message.updated" && info?.role === "assistant" && info.finish) {
-    void handleMessageUpdatedForCapture(input as Parameters<typeof handleMessageUpdatedForCapture>[0], deps.incrementalCapture ?? createDefaultIncrementalCaptureDeps());
+    void handleMessageUpdatedForCapture(
+      input as Parameters<typeof handleMessageUpdatedForCapture>[0],
+      deps.incrementalCapture ?? createDefaultIncrementalCaptureDeps(),
+    );
   }
 
   if ((input.event.type === "session.deleted" || input.event.type === "session.idle") && deps.sessionEnd) {

@@ -89,16 +89,14 @@ export function extractSignalContent(messages: Message[], config: SignalExtracti
   }
 
   const contextualTurns = getContextualTurns(turns, signalIndices, config.signalTurnsBefore);
-  const content = contextualTurns.map((turn) => `[${turn.role}] ${turn.text}`).join("\n").trim();
+  const content = contextualTurns
+    .map((turn) => `[${turn.role}] ${turn.text}`)
+    .join("\n")
+    .trim();
 
   return content.length > 0 ? content : null;
 }
 
 function isDetectableUserTurn(turn: Turn): boolean {
-  return (
-    turn.role === "user" &&
-    turn.text.length > 0 &&
-    turn.text.length <= MAX_SIGNAL_TURN_CHARS &&
-    !COMMAND_PATTERN.test(turn.text)
-  );
+  return turn.role === "user" && turn.text.length > 0 && turn.text.length <= MAX_SIGNAL_TURN_CHARS && !COMMAND_PATTERN.test(turn.text);
 }

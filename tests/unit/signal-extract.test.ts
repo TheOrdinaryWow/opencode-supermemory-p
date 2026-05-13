@@ -1,12 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import {
-  extractSignalContent,
-  findSignalTurns,
-  getContextualTurns,
-  groupIntoTurns,
-  type Message,
-  type Turn,
-} from "@/signal/extract";
+
+import { extractSignalContent, findSignalTurns, getContextualTurns, groupIntoTurns, type Message, type Turn } from "@/signal/extract";
 
 function textMessage(id: string, role: Message["role"], text: string): Message {
   return {

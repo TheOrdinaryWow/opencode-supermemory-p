@@ -19,7 +19,7 @@ describe("stripInboundMetadata", () => {
   });
 
   it("strips supermemory containers tag", () => {
-    const input = "<supermemory-containers>{\"id\":\"1\"}</supermemory-containers>\nhello";
+    const input = '<supermemory-containers>{"id":"1"}</supermemory-containers>\nhello';
 
     expect(stripInboundMetadata(input)).toBe("hello");
   });
@@ -37,8 +37,7 @@ describe("stripInboundMetadata", () => {
   });
 
   it("keeps only real content from mixed metadata", () => {
-    const input =
-      "2024-01-01T00:00:00Z\n<system-reminder>X</system-reminder>\n<supermemory-context>Y</supermemory-context>\nhello";
+    const input = "2024-01-01T00:00:00Z\n<system-reminder>X</system-reminder>\n<supermemory-context>Y</supermemory-context>\nhello";
 
     expect(stripInboundMetadata(input)).toBe("hello");
   });

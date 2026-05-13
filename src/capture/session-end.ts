@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import type { SupermemoryConfig } from "@/config/schema";
-import { type Message, type MessagePart, type Turn, extractSignalContent, groupIntoTurns } from "@/signal/extract";
+import { type extractSignalContent, groupIntoTurns, type Message, type MessagePart, type Turn } from "@/signal/extract";
 
 export interface EventSessionDeleted {
   event: {
@@ -119,5 +119,8 @@ function sliceAfterLastCaptured(messages: Message[], lastCaptured: string | null
 }
 
 function formatTurns(turns: Turn[]): string {
-  return turns.map((turn) => `[${turn.role}] ${turn.text}`).join("\n").trim();
+  return turns
+    .map((turn) => `[${turn.role}] ${turn.text}`)
+    .join("\n")
+    .trim();
 }

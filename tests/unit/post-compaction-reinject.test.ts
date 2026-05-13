@@ -4,8 +4,8 @@ import type { Part } from "@opencode-ai/sdk";
 
 import type { ChatClientLike, ChatHandlerDeps } from "@/chat/handler";
 import { handleChatMessage } from "@/chat/handler";
-import type { SupermemoryConfig } from "@/config/schema";
 import { handleSessionCompacted, pendingReinjectSessions } from "@/compaction/post-reinject";
+import type { SupermemoryConfig } from "@/config/schema";
 import { handleEvent } from "@/events/handler";
 import { createSessionState } from "@/session/state";
 
@@ -93,7 +93,10 @@ afterEach(() => {
 
 describe("post-compaction recall re-injection", () => {
   it("queues compacted sessions when post-compaction re-injection is enabled", async () => {
-    await handleEvent({ event: { type: "session.compacted", properties: { sessionID: "ses_compacted" } } }, { compactionHook: null, config: enabledConfig });
+    await handleEvent(
+      { event: { type: "session.compacted", properties: { sessionID: "ses_compacted" } } },
+      { compactionHook: null, config: enabledConfig },
+    );
 
     expect(pendingReinjectSessions.has("ses_compacted")).toBe(true);
   });

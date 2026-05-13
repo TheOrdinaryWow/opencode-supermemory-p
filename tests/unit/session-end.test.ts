@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
 
+import { type EventSessionDeleted, type EventSessionIdle, handleSessionEnd, type SessionEndDeps } from "@/capture/session-end";
 import { DEFAULTS } from "@/config/defaults";
-import { SupermemoryConfigSchema, type SupermemoryConfig } from "@/config/schema";
-import { handleSessionEnd, type EventSessionDeleted, type EventSessionIdle, type SessionEndDeps } from "@/capture/session-end";
+import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 import { extractSignalContent } from "@/signal/extract";
 
 function makeConfig(overrides: Partial<SupermemoryConfig> = {}): SupermemoryConfig {

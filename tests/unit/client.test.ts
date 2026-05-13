@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import type { AppError } from "@/shared/errors";
 import type { DedupCache } from "@/memory/dedup";
+import type { AppError } from "@/shared/errors";
 
 // =====================================================================
 // Background — what we are pinning

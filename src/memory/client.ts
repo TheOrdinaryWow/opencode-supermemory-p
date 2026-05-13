@@ -167,11 +167,7 @@ export class SupermemoryClient {
     });
   }
 
-  async addMemory(
-    content: string,
-    containerTag: string,
-    metadata?: AddMemoryMetadata,
-  ): Promise<Result<AddMemoryResult, AppError>> {
+  async addMemory(content: string, containerTag: string, metadata?: AddMemoryMetadata): Promise<Result<AddMemoryResult, AppError>> {
     logger.info("addMemory: start", { containerTag, contentLength: content.length });
     return withResult("addMemory", async () => {
       const config = getConfig();
@@ -281,7 +277,9 @@ export class SupermemoryClient {
       if (result.ok && typeof result.value.id === "string") {
         savedIds.push(result.value.id);
       } else if (!firstError) {
-        firstError = result.ok ? ({ kind: "NetworkError", message: "Memory was deduped before ingest storage" } satisfies AppError) : result.error;
+        firstError = result.ok
+          ? ({ kind: "NetworkError", message: "Memory was deduped before ingest storage" } satisfies AppError)
+          : result.error;
       }
     }
 

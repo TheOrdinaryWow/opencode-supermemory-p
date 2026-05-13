@@ -48,12 +48,7 @@ export async function handlePreCompactionSave(
 }
 
 function buildSessionContent(messages: Message[]): string {
-  return messages
-    .flatMap(formatMessageTurn)
-    .slice(-MAX_TURNS)
-    .join("\n")
-    .slice(0, MAX_CONTENT_CHARS)
-    .trim();
+  return messages.flatMap(formatMessageTurn).slice(-MAX_TURNS).join("\n").slice(0, MAX_CONTENT_CHARS).trim();
 }
 
 function formatMessageTurn(message: Message): string[] {

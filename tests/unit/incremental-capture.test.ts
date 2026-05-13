@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
 
-import { SupermemoryConfigSchema, type SupermemoryConfig } from "@/config/schema";
+import { type EventMessageUpdated, handleMessageUpdatedForCapture, type IncrementalCaptureDeps } from "@/capture/incremental";
 import { DEFAULTS } from "@/config/defaults";
-import { handleMessageUpdatedForCapture, type EventMessageUpdated, type IncrementalCaptureDeps } from "@/capture/incremental";
+import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 
 function makeConfig(overrides: Partial<SupermemoryConfig> = {}): SupermemoryConfig {
   return SupermemoryConfigSchema.parse({
@@ -89,7 +89,10 @@ describe("handleMessageUpdatedForCapture", () => {
 
   it("skips when signal extraction finds no content", async () => {
     const signalExtract = mock(() => null);
-    const { deps, addMemory } = makeDeps({ config: makeConfig({ projectContainerTag: "project-tag", signalExtraction: true }), signalExtract });
+    const { deps, addMemory } = makeDeps({
+      config: makeConfig({ projectContainerTag: "project-tag", signalExtraction: true }),
+      signalExtract,
+    });
 
     await handleMessageUpdatedForCapture(makeEvent(), deps);
 

@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
 
 import { appendCaptured, getLastCaptured, pruneOldTrackers } from "@/capture/tracker";
+
 import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir";
 
 async function expectMode(path: string, expectedMode: number): Promise<void> {
