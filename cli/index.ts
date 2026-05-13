@@ -5,7 +5,7 @@ import logoutCommand from "@cli/commands/logout";
 import { defineCommand, runMain } from "citty";
 
 const HELP = `
-opencode-supermemory - Persistent memory for OpenCode agents
+opencode-supermemory-p - The powered Supermemory plugin for OpenCode
 
 Commands:
   install    Install and configure the plugin
@@ -15,9 +15,9 @@ Commands:
   logout     Clear stored credentials
 
 Examples:
-  bunx opencode-supermemory@latest install
-  bunx opencode-supermemory@latest login
-  bunx opencode-supermemory@latest logout
+  bunx opencode-supermemory-p@latest install
+  bunx opencode-supermemory-p@latest login
+  bunx opencode-supermemory-p@latest logout
 `;
 
 const first = process.argv[2];
@@ -34,7 +34,7 @@ if (!known.includes(first)) {
 
 runMain(
   defineCommand({
-    meta: { name: "opencode-supermemory" },
+    meta: { name: "opencode-supermemory-p" },
     subCommands: { install: installCommand, login: loginCommand, logout: logoutCommand, setup: setupCommand },
   }),
 );

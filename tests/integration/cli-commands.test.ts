@@ -76,7 +76,7 @@ describe("CLI commands", () => {
       const configPath = join(result.home, ".config", "opencode", "opencode.jsonc");
       const commandDir = join(result.home, ".config", "opencode", "command");
       expect(existsSync(configPath)).toBe(true);
-      expect(readFileSync(configPath, "utf-8")).toContain("opencode-supermemory@latest");
+      expect(readFileSync(configPath, "utf-8")).toContain("opencode-supermemory-p@latest");
       expect(existsSync(join(commandDir, "supermemory-init.md"))).toBe(true);
       expect(existsSync(join(commandDir, "supermemory-login.md"))).toBe(true);
       expect(existsSync(join(commandDir, "supermemory-logout.md"))).toBe(true);
@@ -116,7 +116,7 @@ describe("CLI commands", () => {
     try {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("Unknown command: bogus-cmd");
-      expect(result.stdout).toContain("opencode-supermemory - Persistent memory");
+      expect(result.stdout).toContain("opencode-supermemory-p - The powered Supermemory plugin");
     } finally {
       cleanupCliResult(result);
     }

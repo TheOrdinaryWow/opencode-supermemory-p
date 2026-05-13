@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { stripJsoncComments } from "@/shared/jsonc";
 
 export const OPENCODE_CONFIG_DIR = join(homedir(), ".config", "opencode");
-const PLUGIN_NAME = "opencode-supermemory@latest";
+const PLUGIN_NAME = "opencode-supermemory-p@latest";
 
 export function findOpencodeConfig(): string | null {
   const candidates = [join(OPENCODE_CONFIG_DIR, "opencode.jsonc"), join(OPENCODE_CONFIG_DIR, "opencode.json")];
@@ -21,7 +21,7 @@ export function addPluginToConfig(configPath: string): boolean {
   try {
     const content = readFileSync(configPath, "utf-8");
 
-    if (content.includes("opencode-supermemory")) {
+    if (content.includes("opencode-supermemory-p")) {
       console.log("✓ Plugin already registered in config");
       return true;
     }

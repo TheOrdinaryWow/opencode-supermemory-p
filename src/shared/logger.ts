@@ -18,7 +18,7 @@ export interface Logger {
 export interface LoggerOptions {
   /**
    * Absolute file path to append log lines to. When omitted, resolves to
-   * `process.env.OPENCODE_SUPERMEMORY_LOG ?? ~/.opencode-supermemory.log`
+   * `process.env.OPENCODE_SUPERMEMORY_LOG ?? ~/.opencode-supermemory-p.log`
    * lazily at first write (not at construction time).
    */
   filePath?: string;
@@ -41,7 +41,7 @@ const VALID_LEVELS = new Set<LogLevel>(["debug", "info", "warn", "error"]);
  * with a custom HOME and OPENCODE_SUPERMEMORY_LOG.
  */
 function resolveDefaultPath(): string {
-  return process.env.OPENCODE_SUPERMEMORY_LOG ?? join(homedir(), ".opencode-supermemory.log");
+  return process.env.OPENCODE_SUPERMEMORY_LOG ?? join(homedir(), ".opencode-supermemory-p.log");
 }
 
 function resolveDefaultLevel(): LogLevel {

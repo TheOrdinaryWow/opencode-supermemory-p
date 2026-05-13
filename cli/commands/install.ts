@@ -14,7 +14,7 @@ async function maybe(rl: Interface | null, q: string, action: () => void): Promi
 }
 
 async function runInstall(tui: boolean, disableAutoCompact: boolean): Promise<number> {
-  console.log("\n🧠 opencode-supermemory installer\n");
+  console.log("\n🧠 opencode-supermemory-p installer\n");
   const rl = tui ? createReadline() : null;
 
   console.log("Step 1: Register plugin in OpenCode config");
@@ -41,7 +41,7 @@ async function runInstall(tui: boolean, disableAutoCompact: boolean): Promise<nu
   console.log("\n🔑 Final step: Authenticate with Supermemory\n");
   if (tui) return runLoginFlow();
   console.log("Run this command to authenticate:");
-  console.log("  bunx opencode-supermemory@latest login");
+  console.log("  bunx opencode-supermemory-p@latest login");
   console.log("\nOr set your API key manually:");
   console.log('  export SUPERMEMORY_API_KEY="sm_..."');
   console.log(`\n${"─".repeat(50)}`);

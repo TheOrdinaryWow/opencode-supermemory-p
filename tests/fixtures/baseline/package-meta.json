@@ -1,6 +1,6 @@
 {
   "bin": {
-    "opencode-supermemory": "./dist/cli.js"
+    "opencode-supermemory-p": "./dist/cli.js"
   },
   "main": "dist/index.js",
   "type": "module",

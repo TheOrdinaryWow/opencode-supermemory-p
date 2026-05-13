@@ -1,6 +1,6 @@
 # tests/
 
-Test infrastructure for opencode-supermemory.
+Test infrastructure for opencode-supermemory-p.
 
 This directory contains the safety net used by the architecture refactor:
 helpers for isolating filesystem / network / process / time effects, plus

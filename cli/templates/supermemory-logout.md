@@ -7,7 +7,7 @@ description: Log out from Supermemory and clear credentials
 Run this command to log out and clear Supermemory credentials:
 
 ```bash
-bunx opencode-supermemory@latest logout
+bunx opencode-supermemory-p@latest logout
 ```
 
 This will remove the saved credentials from ~/.supermemory-opencode/credentials.json.

@@ -1,12 +1,12 @@
 {
-  "name": "opencode-supermemory",
+  "name": "opencode-supermemory-p",
   "version": "2.0.5",
-  "description": "OpenCode plugin that gives coding agents persistent memory using Supermemory",
+  "description": "The powered Supermemory plugin for OpenCode — persistent memory for coding agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "opencode-supermemory": "./dist/cli.js"
+    "opencode-supermemory-p": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsdown",
@@ -24,11 +24,11 @@
     "ai",
     "coding-agent"
   ],
-  "author": "Supermemory",
+  "author": "TheOrdinaryWow",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/supermemoryai/opencode-supermemory"
+    "url": "https://github.com/TheOrdinaryWow/opencode-supermemory-p"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.162",

@@ -1,15 +1,15 @@
-# opencode-supermemory
+# opencode-supermemory-p
 
-OpenCode plugin for persistent memory using [Supermemory](https://supermemory.ai).
+**The powered Supermemory plugin for OpenCode** — persistent memory using [Supermemory](https://supermemory.ai).
 
-Your agent remembers what you tell it - across sessions, across projects.
+Your agent remembers what you tell it — across sessions, across projects.
 
 ## Installation
 
 ### For Humans
 
 ```bash
-bunx opencode-supermemory@latest install
+bunx opencode-supermemory-p@latest install
 ```
 
 Then get your API key from [app.supermemory.ai](https://app.supermemory.ai/?view=integrations) and set it:
@@ -21,7 +21,7 @@ export SUPERMEMORY_API_KEY="sm_..."
 **Or let your agent do it** - paste this into OpenCode:
 
 ```
-Install opencode-supermemory by following https://raw.githubusercontent.com/supermemoryai/opencode-supermemory/main/README.md
+Install opencode-supermemory-p by following https://github.com/TheOrdinaryWow/opencode-supermemory-p/raw/refs/heads/main/README.md
 ```
 
 ### For LLM Agents
@@ -29,12 +29,12 @@ Install opencode-supermemory by following https://raw.githubusercontent.com/supe
 <details>
 <summary>Instructions for LLM Agents (click to expand)</summary>
 
-If you're an LLM agent helping set up opencode-supermemory, follow these steps:
+If you're an LLM agent helping set up opencode-supermemory-p, follow these steps:
 
 #### Step 1: Run the installer
 
 ```bash
-bunx opencode-supermemory@latest install --no-tui
+bunx opencode-supermemory-p@latest install --no-tui
 ```
 
 This will:
@@ -52,7 +52,7 @@ Should contain:
 
 ```json
 {
-  "plugin": ["opencode-supermemory"]
+  "plugin": ["opencode-supermemory-p"]
 }
 ```
 
@@ -63,7 +63,7 @@ If not, add it manually:
 ```jsonc
 {
   "plugin": [
-    "opencode-supermemory",
+    "opencode-supermemory-p",
     // ... other plugins
   ],
 }
@@ -73,7 +73,7 @@ If not, add it manually:
 
 ```json
 {
-  "plugin": ["opencode-supermemory"]
+  "plugin": ["opencode-supermemory-p"]
 }
 ```
 
@@ -107,7 +107,7 @@ They should see `supermemory` in the tools list. If not, check:
 
 1. Is `SUPERMEMORY_API_KEY` set?
 2. Is the plugin in `opencode.jsonc`?
-3. Check logs: `tail ~/.opencode-supermemory.log`
+3. Check logs: `tail ~/.opencode-supermemory-p.log`
 
 #### Step 5: Initialize codebase memory (optional)
 
@@ -285,22 +285,24 @@ Add to `~/.config/opencode/oh-my-opencode.json`:
 
 ```bash
 bun install
-bun run build
+bun run build       # tsdown bundles dist/index.js (plugin) + dist/cli.js (CLI)
 bun run typecheck
+bun test            # 214 tests across unit, contract, and integration suites
+bun run check       # biome lint + format with --write
 ```
 
 Local install:
 
 ```jsonc
 {
-  "plugin": ["file:///path/to/opencode-supermemory"],
+  "plugin": ["file:///path/to/opencode-supermemory-p"],
 }
 ```
 
 ## Logs
 
 ```bash
-tail -f ~/.opencode-supermemory.log
+tail -f ~/.opencode-supermemory-p.log
 ```
 
 ## License

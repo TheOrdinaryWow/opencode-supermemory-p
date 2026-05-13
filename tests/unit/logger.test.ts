@@ -32,7 +32,7 @@ describe("logger: import is side-effect-free", () => {
 
   it("importing the module does not create any log file", () => {
     const explicitLog = join(tmp, "explicit.log");
-    const defaultLog = join(tmp, ".opencode-supermemory.log"); // resolved via HOME=tmp
+    const defaultLog = join(tmp, ".opencode-supermemory-p.log"); // resolved via HOME=tmp
 
     const script = `await import(${JSON.stringify(LOGGER_MODULE_ABS)});`;
     const { exitCode, stderr } = spawnScript(script, {
