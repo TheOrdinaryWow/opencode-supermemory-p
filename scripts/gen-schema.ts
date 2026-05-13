@@ -16,15 +16,27 @@ import { z } from "zod";
 
 import { SupermemoryConfigSchema } from "../src/config/schema";
 
-const generated = z.toJSONSchema(SupermemoryConfigSchema, {
+const {
+  $schema: _generatedSchema,
+  properties: generatedProperties = {},
+  ...rest
+} = z.toJSONSchema(SupermemoryConfigSchema, {
   target: "draft-2020-12",
-});
+}) as Record<string, unknown> & { properties?: Record<string, unknown> };
 
 const schema = {
-  $id: "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/main/schema.json",
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/assets/config.schema.json",
   title: "opencode-supermemory-p config",
   description: "Configuration for opencode-supermemory-p.",
-  ...generated,
+  ...rest,
+  properties: {
+    $schema: {
+      type: "string",
+      description: "JSON Schema reference for editor validation.",
+    },
+    ...generatedProperties,
+  },
   required: [],
 };
 

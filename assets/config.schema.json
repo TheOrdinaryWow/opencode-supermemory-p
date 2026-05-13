@@ -1,10 +1,16 @@
 {
-  "$id": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/main/schema.json",
-  "title": "opencode-supermemory-p config",
-  "description": "Configuration for opencode-supermemory-p.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/assets/config.schema.json",
+  "title": "opencode-supermemory-p config",
+  "description": "opencode-supermemory-p's configuration schema.",
   "type": "object",
+  "required": [],
+  "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "opencode-supermemory-p's JSON Schema reference."
+    },
     "apiKey": {
       "type": "string",
       "pattern": "^sm_.*"
@@ -70,7 +76,5 @@
       "exclusiveMinimum": 0,
       "maximum": 1
     }
-  },
-  "required": [],
-  "additionalProperties": false
+  }
 }
