@@ -17,6 +17,7 @@ Your agent remembers what you tell it — across sessions, across projects.
 - [Development](#development)
 - [Logs](#logs)
 - [Maintenance](#maintenance)
+- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ## Installation
@@ -499,6 +500,17 @@ bun run scripts/purge-injected.ts --confirm
 ```
 
 The script reads `SUPERMEMORY_API_KEY` from the environment or `~/.config/opencode/supermemory-p.jsonc`. Override with `--api-key sm_...` or `--base-url https://...` if needed.
+
+## Acknowledgements
+
+This plugin builds on the work of the Supermemory team and the wider community of plugin authors. In particular:
+
+- [opencode-supermemory](https://github.com/supermemoryai/opencode-supermemory) — the upstream OpenCode plugin this fork is based on.
+- [claude-supermemory](https://github.com/supermemoryai/claude-supermemory) — source of the entity-context, dedup, and signal-extraction patterns.
+- [openclaw-supermemory](https://github.com/supermemoryai/openclaw-supermemory) — source of the incremental-capture, metadata-stripping, and compaction-hook designs.
+- [opencode-supermemory-max](https://github.com/kandotrun/opencode-supermemory-max) — community fork that informed several of the feature consolidations here.
+
+Thanks to everyone who shipped these projects.
 
 ## License
 
