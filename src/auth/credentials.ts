@@ -2,9 +2,7 @@ import { chmodSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import fsExtra from "fs-extra";
-
-const { ensureDirSync, outputJsonSync } = fsExtra;
+import { ensureDirSync, outputJsonSync } from "fs-extra";
 
 export const CREDENTIALS_DIR = join(homedir(), ".supermemory-opencode");
 export const CREDENTIALS_FILE = join(CREDENTIALS_DIR, "credentials.json");

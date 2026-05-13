@@ -2,12 +2,10 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import fsExtra from "fs-extra";
+import { ensureDirSync } from "fs-extra";
 
 import { findNearestMessageWithFields } from "@/compaction/finder";
 import { defaultLogger } from "@/shared/logger";
-
-const { ensureDirSync } = fsExtra;
 
 /** On-disk roots captured at module-load time so tests can override $HOME first. */
 export const MESSAGE_STORAGE = join(homedir(), ".opencode", "messages");
