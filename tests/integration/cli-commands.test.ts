@@ -45,7 +45,7 @@ function cleanupCliResult(result: CliResult): void {
 }
 
 function writeCredentials(home: string): void {
-  const dir = join(home, ".supermemory-opencode");
+  const dir = join(home, ".local", "share", "opencode-supermemory-p");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "credentials.json"), JSON.stringify({ apiKey: "sm_test_cli", createdAt: "2026-01-01T00:00:00.000Z" }));
 }
@@ -105,7 +105,7 @@ describe("CLI commands", () => {
     try {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("Credentials cleared");
-      expect(existsSync(join(result.home, ".supermemory-opencode", "credentials.json"))).toBe(false);
+      expect(existsSync(join(result.home, ".local", "share", "opencode-supermemory-p", "credentials.json"))).toBe(false);
     } finally {
       cleanupCliResult(result);
     }

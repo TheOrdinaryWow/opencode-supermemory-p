@@ -81,7 +81,7 @@ function readFileConfig(homeDir: string): Record<string, unknown> {
  * Resolution order for `apiKey` (highest priority first):
  *   1. `SUPERMEMORY_API_KEY` env var.
  *   2. `apiKey` field in `~/.config/opencode/supermemory.{jsonc,json}`.
- *   3. `apiKey` from `~/.supermemory-opencode/credentials.json` (OAuth flow).
+ *   3. `apiKey` from `~/.local/share/opencode-supermemory-p/credentials.json` (OAuth flow).
  *
  * `keywordPatterns` is the merge of `DEFAULT_KEYWORD_PATTERNS` (always first)
  * and any user-supplied patterns whose regex compiles. Invalid regex strings

@@ -31,8 +31,8 @@ async function runAuthScenario(scenario: string): Promise<AuthEvalResult> {
       const response = {};
       const scenario = ${JSON.stringify(scenario)};
       const serverState = { closed: 0 };
-      const credentialsFile = join(process.env.HOME, ".supermemory-opencode", "credentials.json");
-      const credentialsDir = join(process.env.HOME, ".supermemory-opencode");
+      const credentialsFile = join(process.env.HOME, ".local", "share", "opencode-supermemory-p", "credentials.json");
+      const credentialsDir = join(process.env.HOME, ".local", "share", "opencode-supermemory-p");
       const serverFactory = (options) => ({
         start() {
           serverState.listenPort = options.port;

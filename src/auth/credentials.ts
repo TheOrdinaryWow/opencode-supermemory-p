@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { ensureDirSync, outputJsonSync } from "fs-extra";
 
-export const CREDENTIALS_DIR = join(homedir(), ".supermemory-opencode");
+export const CREDENTIALS_DIR = join(homedir(), ".local", "share", "opencode-supermemory-p");
 export const CREDENTIALS_FILE = join(CREDENTIALS_DIR, "credentials.json");
 
 export interface Credentials {

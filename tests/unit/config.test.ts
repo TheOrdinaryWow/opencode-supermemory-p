@@ -42,7 +42,7 @@ interface ConfigEvalResult {
 interface EvalOpts {
   /** Optional file at `~/.config/opencode/<name>`. */
   configFile?: { name: "supermemory.jsonc" | "supermemory.json"; content: string };
-  /** Optional content of `~/.supermemory-opencode/credentials.json`. */
+  /** Optional content of `~/.local/share/opencode-supermemory-p/credentials.json`. */
   credentialsContent?: string;
   /** Env overrides. `undefined` deletes the var; absent leaves parent default. */
   env?: Record<string, string | undefined>;
@@ -56,8 +56,8 @@ async function evalConfig(opts: EvalOpts = {}): Promise<ConfigEvalResult> {
       writeFileSync(join(tmpHome, ".config", "opencode", opts.configFile.name), opts.configFile.content);
     }
     if (opts.credentialsContent !== undefined) {
-      mkdirSync(join(tmpHome, ".supermemory-opencode"), { recursive: true });
-      writeFileSync(join(tmpHome, ".supermemory-opencode", "credentials.json"), opts.credentialsContent);
+      mkdirSync(join(tmpHome, ".local", "share", "opencode-supermemory-p"), { recursive: true });
+      writeFileSync(join(tmpHome, ".local", "share", "opencode-supermemory-p", "credentials.json"), opts.credentialsContent);
     }
 
     // Build env: start from parent so PATH/etc survive, override HOME, strip
