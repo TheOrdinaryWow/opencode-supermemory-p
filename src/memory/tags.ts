@@ -132,13 +132,13 @@ export function getProjectTag(
 
   // Git-backed strategies: try to resolve the repo name first, fall back to
   // hashDirectory when not in a git repo or no `origin` remote.
-  if (strategy === "hashGitRepoName" || strategy === "RawGitRepoName") {
+  if (strategy === "hashGitRepoName" || strategy === "rawGitRepoName") {
     const repoName = getGitRepoName(directory);
     if (repoName) {
       if (strategy === "hashGitRepoName") {
         return `${prefix}_project_${sha256(repoName)}`;
       }
-      // RawGitRepoName: "owner/repo" -> "owner_repo" (avoid "/" in tags)
+      // rawGitRepoName: "owner/repo" -> "owner_repo" (avoid "/" in tags)
       const safe = repoName.replace(/\//g, "_");
       return `${prefix}_project_${safe}`;
     }

@@ -12,7 +12,7 @@ const mockConfig: {
   containerTagPrefix: string;
   userContainerTag: string | undefined;
   projectContainerTag: string | undefined;
-  projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName";
+  projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName";
 } = {
   containerTagPrefix: "opencode",
   userContainerTag: undefined,
@@ -266,20 +266,20 @@ describe("getProjectTag", () => {
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_43ac6f583851e4e9");
   });
 
-  it("RawGitRepoName strategy: uses owner.repo (slashes replaced with underlines)", () => {
-    mockConfig.projectTagStrategy = "RawGitRepoName";
+  it("rawGitRepoName strategy: uses owner.repo (slashes replaced with underlines)", () => {
+    mockConfig.projectTagStrategy = "rawGitRepoName";
     gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_TheOrdinaryWow_abc");
   });
 
-  it("RawGitRepoName: nested groups flatten underlines", () => {
-    mockConfig.projectTagStrategy = "RawGitRepoName";
+  it("rawGitRepoName: nested groups flatten underlines", () => {
+    mockConfig.projectTagStrategy = "rawGitRepoName";
     gitRemoteResponder = "https://gitlab.com/group/subgroup/repo.git\n";
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_group_subgroup_repo");
   });
 
-  it("RawGitRepoName: falls back to hashDirectory when not in a git repo", () => {
-    mockConfig.projectTagStrategy = "RawGitRepoName";
+  it("rawGitRepoName: falls back to hashDirectory when not in a git repo", () => {
+    mockConfig.projectTagStrategy = "rawGitRepoName";
     gitRemoteResponder = new Error("fatal: not a git repository");
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("opencode_project_43ac6f583851e4e9");
   });
@@ -292,7 +292,7 @@ describe("getProjectTag", () => {
 
     tags.resetTagsCache();
     gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
-    mockConfig.projectTagStrategy = "RawGitRepoName";
+    mockConfig.projectTagStrategy = "rawGitRepoName";
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("my-prefix-_project_TheOrdinaryWow_abc");
   });
 });

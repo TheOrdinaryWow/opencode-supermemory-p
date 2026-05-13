@@ -30,7 +30,7 @@ interface ConfigEvalResult {
     maxProfileItems: number;
     injectProfile: boolean;
     containerTagPrefix: string;
-    projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName";
+    projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName";
     userContainerTag?: string | null;
     projectContainerTag?: string | null;
     filterPrompt: string;

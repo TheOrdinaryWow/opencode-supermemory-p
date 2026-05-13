@@ -238,7 +238,7 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
   // Optional: Set exact project container tag (overrides auto-generated tag)
   "projectContainerTag": "my-project-tag",
 
-  // Project tag generation strategy: "hashDirectory" | "hashGitRepoName" | "RawGitRepoName"
+  // Project tag generation strategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName"
   "projectTagStrategy": "hashGitRepoName",
 
   // Extra keyword patterns for memory detection (regex)
@@ -284,7 +284,7 @@ When `projectContainerTag` is **not** set, the project tag is auto-generated acc
 | Strategy           | Output                                                | Notes                                                          |
 | ------------------ | ----------------------------------------------------- | -------------------------------------------------------------- |
 | `hashGitRepoName`  | `{prefix}_project_{sha256(owner/repo)}`               | **Default.** Stable across clones / machines for the same repo |
-| `RawGitRepoName`   | `{prefix}_project_{owner.repo}`                       | Human-readable; `/` becomes `_` to keep the tag path-safe      |
+| `rawGitRepoName`   | `{prefix}_project_{owner.repo}`                       | Human-readable; `/` becomes `_` to keep the tag path-safe      |
 | `hashDirectory`    | `{prefix}_project_{sha256(absolute_directory_path)}`  | Pre-existing behavior; tag changes if you move the checkout    |
 
 Both git-backed strategies read `git config --get remote.origin.url` from the project directory and **fall back to `hashDirectory`** when:
@@ -304,7 +304,7 @@ Example resolution (HTTPS or SSH remote of `https://github.com/TheOrdinaryWow/ab
 
 {
   "containerTagPrefix": "my-prefix-",
-  "projectTagStrategy": "RawGitRepoName"
+  "projectTagStrategy": "rawGitRepoName"
 }
 // → my-prefix-_project_TheOrdinaryWow.abc
 ```

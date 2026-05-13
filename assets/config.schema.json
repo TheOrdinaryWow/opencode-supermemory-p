@@ -50,7 +50,7 @@
       "enum": [
         "hashDirectory",
         "hashGitRepoName",
-        "RawGitRepoName"
+        "rawGitRepoName"
       ]
     },
     "userContainerTag": {

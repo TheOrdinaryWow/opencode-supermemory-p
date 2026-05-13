@@ -27,7 +27,7 @@ export const SupermemoryConfigSchema = z.object({
   maxProfileItems: z.number().positive().catch(DEFAULTS.maxProfileItems),
   injectProfile: z.boolean().catch(DEFAULTS.injectProfile),
   containerTagPrefix: z.string().catch(DEFAULTS.containerTagPrefix),
-  projectTagStrategy: z.enum(["hashDirectory", "hashGitRepoName", "RawGitRepoName"]).catch(DEFAULTS.projectTagStrategy),
+  projectTagStrategy: z.enum(["hashDirectory", "hashGitRepoName", "rawGitRepoName"]).catch(DEFAULTS.projectTagStrategy),
   userContainerTag: z.string().optional(),
   projectContainerTag: z.string().optional(),
   filterPrompt: z.string().catch(DEFAULTS.filterPrompt),
