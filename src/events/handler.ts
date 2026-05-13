@@ -6,6 +6,7 @@
  */
 
 import { handleMessageUpdatedForCapture, type IncrementalCaptureDeps } from "@/capture/incremental";
+import { handleSessionEnd, type SessionEndDeps } from "@/capture/session-end";
 import * as tracker from "@/capture/tracker";
 import { getConfig } from "@/config/loader";
 import { resultSupermemoryClient } from "@/memory/client";
@@ -18,6 +19,7 @@ export interface EventInput {
 export interface EventDeps {
   compactionHook: { event(input: EventInput): Promise<void> } | null;
   incrementalCapture?: IncrementalCaptureDeps;
+  sessionEnd?: SessionEndDeps;
 }
 
 export async function handleEvent(input: EventInput, deps: EventDeps): Promise<void> {
@@ -25,6 +27,10 @@ export async function handleEvent(input: EventInput, deps: EventDeps): Promise<v
   const info = props?.info as { role?: string; finish?: unknown } | undefined;
   if (input.event.type === "message.updated" && info?.role === "assistant" && info.finish) {
     void handleMessageUpdatedForCapture(input as Parameters<typeof handleMessageUpdatedForCapture>[0], deps.incrementalCapture ?? createDefaultIncrementalCaptureDeps());
+  }
+
+  if ((input.event.type === "session.deleted" || input.event.type === "session.idle") && deps.sessionEnd) {
+    void handleSessionEnd(input as Parameters<typeof handleSessionEnd>[0], deps.sessionEnd);
   }
 
   if (deps.compactionHook) {

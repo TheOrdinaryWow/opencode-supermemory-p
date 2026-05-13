@@ -4,6 +4,8 @@ import { handleChatMessage } from "@/chat/handler";
 import { type CompactionContext, createCompactionHook } from "@/compaction/index";
 import { createModelLimitLookup } from "@/compaction/model-limits";
 import { getConfig } from "@/config/loader";
+import { extractSignalContent } from "@/signal/extract";
+import * as tracker from "@/capture/tracker";
 import { handleEvent } from "@/events/handler";
 import { supermemoryClient } from "@/memory/client";
 import { getTags } from "@/memory/tags";
@@ -23,7 +25,25 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   return {
     "chat.message": (input, output) => handleChatMessage(input, output, deps),
     tool: { supermemory: createSupermemoryTool({ tags: deps.tags, client: supermemoryClient }) },
-    event: (input: { event: { type: string; properties?: unknown } }) => handleEvent(input, { compactionHook }),
+    event: (input: { event: { type: string; properties?: unknown } }) =>
+      handleEvent(input, {
+        compactionHook,
+        sessionEnd: ctx.client
+          ? {
+              config: deps.config,
+              client: deps.client,
+              sdkClient: {
+                session: {
+                  messages: ({ sessionId }) => ctx.client.session.messages({ path: { id: sessionId }, query: { directory: ctx.directory } }),
+                },
+              },
+              tracker,
+              signalExtract: extractSignalContent,
+              dataDir: ctx.directory,
+              projectTag: deps.tags.project,
+            }
+          : undefined,
+      }),
   };
 };
 
