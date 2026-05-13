@@ -30,6 +30,9 @@ export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
   /<(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|user-request|user-task)\b/i,
   // Sisyphus orchestrator scaffold wrapper
   /<Work_Context\b/,
+  // Skill tool output — SKILL.md bodies are not user-typed content
+  /<skill_content\b/i,
+  /<available_skills\b/i,
   // System directives
   /\[SYSTEM DIRECTIVE:/i,
   /\[restore checkpointed session/i,

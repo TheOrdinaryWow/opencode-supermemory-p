@@ -64,6 +64,16 @@ describe("isPolluted", () => {
   it("flags polluted message even when buried mid-text", () => {
     expect(isPolluted("user said: hi\n<system-reminder>noise</system-reminder>\nmore text")).toBe(true);
   });
+
+  it("flags skill invocation content blocks (skill body should never be captured)", () => {
+    expect(isPolluted('<skill_content name="frontend-ui-ux">a long skill body</skill_content>')).toBe(true);
+    expect(isPolluted("<available_skills>\n- foo\n- bar\n</available_skills>")).toBe(true);
+  });
+
+  it("flags skill invocation even when buried inside other content", () => {
+    const text = 'first line\nthen <skill_content name="x">huge content</skill_content>\nend';
+    expect(isPolluted(text)).toBe(true);
+  });
 });
 
 describe("createPromptBoundary", () => {
