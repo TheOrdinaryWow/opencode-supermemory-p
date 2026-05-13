@@ -220,6 +220,7 @@ export class SupermemoryClient {
 
     const status = savedIds.length === uniqueTags.length ? "stored" : "partial";
     const response: ConversationIngestResponse = {
+      // biome-ignore lint/style/noNonNullAssertion: `savedIds[0]` is guaranteed to exist since we check `savedIds.length === 0` above
       id: savedIds[0]!,
       conversationId,
       status,

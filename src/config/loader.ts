@@ -3,9 +3,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { loadCredentials } from "@/auth/credentials";
-import { parseJsonc } from "@/shared/jsonc";
 import { DEFAULT_KEYWORD_PATTERNS } from "@/config/defaults";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
+import { parseJsonc } from "@/shared/jsonc";
 
 /**
  * Optional dependency-injection knobs for `loadConfig`.

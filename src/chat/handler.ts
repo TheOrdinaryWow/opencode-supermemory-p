@@ -16,11 +16,11 @@
 import type { Part } from "@opencode-ai/sdk";
 import type { ProfileResponse } from "supermemory/resources";
 
+import { detectMemoryKeyword } from "@/chat/keywords";
+import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
 import type { SessionState } from "@/session/state";
-import { detectMemoryKeyword } from "@/chat/keywords";
-import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 
 export interface ChatHandlerInput {
   sessionID: string;

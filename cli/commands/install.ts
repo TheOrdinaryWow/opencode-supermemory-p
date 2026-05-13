@@ -1,12 +1,11 @@
 import type { Interface } from "node:readline";
 
-import { defineCommand } from "citty";
-
 import { createCommandFiles } from "@cli/command-files";
+import { runLoginFlow } from "@cli/commands/login";
 import { disableAutoCompactHook, isAutoCompactAlreadyDisabled, isOhMyOpencodeInstalled } from "@cli/oh-my-opencode";
 import { addPluginToConfig, createNewConfig, findOpencodeConfig } from "@cli/opencode-config";
 import { confirm, createReadline } from "@cli/prompts";
-import { runLoginFlow } from "@cli/commands/login";
+import { defineCommand } from "citty";
 
 async function maybe(rl: Interface | null, q: string, action: () => void): Promise<void> {
   if (!rl) return action();

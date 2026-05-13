@@ -24,7 +24,6 @@ import type { AppError } from "@/shared/errors";
 // passed to `memories.add` from inside `ingestConversation`.
 // =====================================================================
 
-
 // Mutable per-test SDK behavior. Tests assign onto this before calling
 // the client; the mocked Supermemory class reads from it on every call.
 interface SdkCall {
@@ -92,7 +91,6 @@ mock.module("supermemory", () => {
     },
   };
 });
-
 
 // Dynamic import so both mocks are in effect before client.ts loads.
 let SupermemoryClient: typeof import("@/memory/client").SupermemoryClient;

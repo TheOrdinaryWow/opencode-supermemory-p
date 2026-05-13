@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-
 // =====================================================================
 // In-test mock state — kept self-contained so the global `mock.module`
 // patch below stays harmless to other test files (notably
@@ -24,7 +23,6 @@ const mockConfig: {
 type GitEmailResponder = string | Error | (() => string);
 let gitEmailResponder: GitEmailResponder | null = null;
 let gitEmailCallCount = 0;
-
 
 // Patch node:child_process — intercept ONLY `git config user.email` and
 // pass every other command through to the real execSync. This keeps

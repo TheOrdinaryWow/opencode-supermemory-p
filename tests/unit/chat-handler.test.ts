@@ -138,6 +138,7 @@ describe("handleChatMessage", () => {
 
     expect(deps.injectedSessions.wasInjected("ses_1")).toBe(true);
     expect(output.parts).toHaveLength(2);
+    // biome-ignore lint/style/noNonNullAssertion: `output.parts[0]` is guaranteed to exist since we check `output.parts.length > 0`
     const first = output.parts[0]!;
     expect(first.type).toBe("text");
     expect("synthetic" in first && first.synthetic).toBe(true);

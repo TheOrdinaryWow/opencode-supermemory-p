@@ -1,10 +1,11 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
 import fsExtra from "fs-extra";
 
-import { defaultLogger } from "@/shared/logger";
 import { findNearestMessageWithFields } from "@/compaction/finder";
+import { defaultLogger } from "@/shared/logger";
 
 const { ensureDirSync } = fsExtra;
 

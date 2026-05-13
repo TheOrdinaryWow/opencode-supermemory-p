@@ -2,12 +2,12 @@ import { tool } from "@opencode-ai/plugin";
 
 import { getConfig } from "@/config/loader";
 import type { supermemoryClient } from "@/memory/client";
-import type { MemoryScope, MemoryType } from "@/types/index";
 import { executeAdd } from "@/tool/add";
 import { executeForget } from "@/tool/forget";
 import { executeList } from "@/tool/list";
 import { executeProfile } from "@/tool/profile";
 import { executeSearch } from "@/tool/search";
+import type { MemoryScope, MemoryType } from "@/types/index";
 
 export type ToolDeps = {
   tags: { user: string; project: string };

@@ -1,11 +1,11 @@
-import { getConfig } from "@/config/loader";
-import { supermemoryClient } from "@/memory/client";
-import { defaultLogger as logger } from "@/shared/logger";
 import { findNearestMessageWithFields } from "@/compaction/finder";
 import { getMessageDir, injectHookMessage } from "@/compaction/message-store";
 import { createCompactionPrompt } from "@/compaction/prompt";
 import { type CompactionState, createCompactionState } from "@/compaction/state";
 import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "@/compaction/threshold";
+import { getConfig } from "@/config/loader";
+import { supermemoryClient } from "@/memory/client";
+import { defaultLogger as logger } from "@/shared/logger";
 
 export interface MessageInfo {
   id: string;
