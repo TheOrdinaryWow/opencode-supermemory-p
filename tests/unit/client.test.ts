@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import type { AppError } from "@/shared/errors";
+import type { DedupCache } from "@/memory/dedup";
 
 // =====================================================================
 // Background — what we are pinning
@@ -44,6 +45,24 @@ const sdkState: {
   listMemories: { calls: [] },
   settingsUpdate: { calls: [] },
 };
+
+const timeoutState: {
+  calls: Array<{ ms: number; label?: string }>;
+  rejectLabels: Set<string>;
+} = {
+  calls: [],
+  rejectLabels: new Set(),
+};
+
+mock.module("@/shared/timeout", () => ({
+  withTimeout: <T>(promise: Promise<T>, ms: number, label?: string): Promise<T> => {
+    timeoutState.calls.push({ ms, label });
+    if (label && timeoutState.rejectLabels.has(label)) {
+      return Promise.reject(new Error(`Timeout after ${ms}ms (${label})`));
+    }
+    return promise;
+  },
+}));
 
 // Mock the `supermemory` SDK module. Returns a class whose constructor
 // shape matches `new Supermemory({ apiKey })` and exposes the same
@@ -94,6 +113,8 @@ mock.module("supermemory", () => {
 
 // Dynamic import so both mocks are in effect before client.ts loads.
 let SupermemoryClient: typeof import("@/memory/client").SupermemoryClient;
+let getConfig: typeof import("@/config/loader").getConfig;
+let resetConfigCache: typeof import("@/config/loader").resetConfigCache;
 let previousApiKey: string | undefined;
 
 function expectErrorKind(error: AppError, kind: AppError["kind"], message: string): void {
@@ -107,7 +128,7 @@ beforeAll(async () => {
   // Bust any cached config left over from other test files (e.g. tags.test.ts
   // calls getConfig() without an apiKey set) so getClient() picks up the env
   // we just set instead of returning a poisoned singleton.
-  const { resetConfigCache } = await import("@/config/loader");
+  ({ getConfig, resetConfigCache } = await import("@/config/loader"));
   resetConfigCache();
   const mod = await import("@/memory/client");
   SupermemoryClient = mod.SupermemoryClient;
@@ -133,8 +154,18 @@ function resetSdkState(): void {
   sdkState.settingsUpdate.impl = undefined;
 }
 
+function resetTimeoutState(): void {
+  timeoutState.calls.length = 0;
+  timeoutState.rejectLabels.clear();
+}
+
 beforeEach(() => {
+  resetConfigCache();
+  const config = getConfig();
+  config.dedupEnabled = false;
+  config.autoCategoryTagging = false;
   resetSdkState();
+  resetTimeoutState();
 });
 
 // =====================================================================
@@ -166,6 +197,17 @@ describe("SupermemoryClient.searchMemories", () => {
       limit: 5,
       searchMode: "hybrid",
     });
+  });
+
+  it("error: timeout failure includes the shared timeout label", async () => {
+    timeoutState.rejectLabels.add("supermemory.searchMemories");
+    const client = new SupermemoryClient();
+    const out = await client.searchMemories("q", "tag_a");
+
+    expect(out.ok).toBe(false);
+    if (out.ok) throw new Error("expected error result");
+    expectErrorKind(out.error, "NetworkError", "Timeout after 5000ms (supermemory.searchMemories)");
+    expect(timeoutState.calls[0]).toEqual({ ms: 5000, label: "supermemory.searchMemories" });
   });
 
   it("error: SDK throw → returns { success: false, error, results: [], total: 0, timing: 0 } envelope", async () => {
@@ -227,8 +269,51 @@ describe("SupermemoryClient.addMemory", () => {
     expect(sdkState.addMemory.calls[0]?.args[0]).toEqual({
       content: "hello world",
       containerTag: "tag_p",
-      metadata: { type: "preference", tool: "test" },
+      metadata: { type: "preference", tool: "test", entityContext: expect.any(String) },
     });
+  });
+
+  it("success: dedup cache intercepts duplicate content before the SDK call", async () => {
+    const config = getConfig();
+    config.dedupEnabled = true;
+    const dedupCache: DedupCache = {
+      has: mock((content: string) => content === "duplicate memory"),
+      add: mock(() => undefined),
+      flush: mock(async () => undefined),
+      load: mock(async () => undefined),
+    };
+    const client = new SupermemoryClient({ dedupCache });
+    const out = await client.addMemory("duplicate memory", "tag_p");
+
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error("expected ok result");
+    expect(out.value).toEqual({ success: true, deduped: true });
+    expect(sdkState.addMemory.calls).toHaveLength(0);
+    expect(dedupCache.add).toHaveBeenCalledTimes(0);
+  });
+
+  it("success: entity context is clamped into metadata before adding memory", async () => {
+    const config = getConfig();
+    config.entityContext = "entity ".repeat(400);
+    sdkState.addMemory.impl = () => ({ id: "mem_entity" });
+    const client = new SupermemoryClient();
+    await client.addMemory("remember my company is Acme", "tag_p", { tool: "test" });
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { metadata: Record<string, unknown> };
+    expect(typeof addCall.metadata.entityContext).toBe("string");
+    expect((addCall.metadata.entityContext as string).length).toBeLessThanOrEqual(1500);
+    expect(addCall.metadata.entityContext).not.toBe(config.entityContext);
+  });
+
+  it("success: category is detected when auto tagging is enabled and metadata has no type", async () => {
+    const config = getConfig();
+    config.autoCategoryTagging = true;
+    sdkState.addMemory.impl = () => ({ id: "mem_category" });
+    const client = new SupermemoryClient();
+    await client.addMemory("I prefer Bun for project scripts", "tag_p", { tool: "test" });
+
+    const addCall = sdkState.addMemory.calls[0]?.args[0] as { metadata: Record<string, unknown> };
+    expect(addCall.metadata.type).toBe("preference");
   });
 
   it("error: SDK throw → returns { success: false, error } (minimal shape — no fallback `id`)", async () => {
