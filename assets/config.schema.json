@@ -12,40 +12,48 @@
       "description": "JSON Schema reference for editor validation."
     },
     "apiKey": {
+      "description": "Supermemory API key (can also use SUPERMEMORY_API_KEY env var)",
       "type": "string",
       "pattern": "^sm_.*"
     },
     "similarityThreshold": {
       "default": 0.6,
+      "description": "Min similarity score for memory retrieval (0-1)",
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
     },
     "maxMemories": {
       "default": 5,
+      "description": "Max relevant memories injected per request",
       "type": "number",
       "exclusiveMinimum": 0
     },
     "maxProjectMemories": {
       "default": 10,
+      "description": "Max project memories listed in context",
       "type": "number",
       "exclusiveMinimum": 0
     },
     "maxProfileItems": {
       "default": 5,
+      "description": "Max profile facts injected in context",
       "type": "number",
       "exclusiveMinimum": 0
     },
     "injectProfile": {
       "default": true,
+      "description": "Include user profile in injected context",
       "type": "boolean"
     },
     "containerTagPrefix": {
       "default": "opencode",
+      "description": "Prefix for auto-generated container tags (used when userContainerTag/projectContainerTag are not set)",
       "type": "string"
     },
     "projectTagStrategy": {
       "default": "hashGitRepoName",
+      "description": "Strategy for generating the project container tag when projectContainerTag is not set",
       "type": "string",
       "enum": [
         "hashDirectory",
@@ -54,17 +62,21 @@
       ]
     },
     "userContainerTag": {
+      "description": "Optional explicit user container tag (overrides auto-generated tag)",
       "type": "string"
     },
     "projectContainerTag": {
+      "description": "Optional explicit project container tag (overrides auto-generated tag)",
       "type": "string"
     },
     "filterPrompt": {
       "default": "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
+      "description": "System prompt used as the memory-ingestion filter directive",
       "type": "string"
     },
     "keywordPatterns": {
       "default": [],
+      "description": "Extra regex patterns for memory-trigger keyword detection",
       "type": "array",
       "items": {
         "type": "string"
@@ -72,29 +84,35 @@
     },
     "compactionThreshold": {
       "default": 0.8,
+      "description": "Context usage ratio that triggers preemptive compaction (0-1)",
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
     },
     "incrementalCapture": {
       "default": true,
+      "description": "Save assistant turns progressively as they finish",
       "type": "boolean"
     },
     "maxCaptureChars": {
       "default": 5000,
+      "description": "Maximum characters kept from any captured turn",
       "type": "number",
       "exclusiveMinimum": 0
     },
     "postCompactionReinject": {
       "default": true,
+      "description": "Re-inject memory after context compaction",
       "type": "boolean"
     },
     "sessionEndSave": {
       "default": true,
+      "description": "Save a final memory snapshot when the session ends or idles",
       "type": "boolean"
     },
     "signalExtraction": {
       "default": true,
+      "description": "Keep only turns that match signal keywords",
       "type": "boolean"
     },
     "signalKeywords": {
@@ -117,6 +135,7 @@
         "my email",
         "my company"
       ],
+      "description": "Keywords that mark a turn as high-signal and trigger capture",
       "type": "array",
       "items": {
         "type": "string"
@@ -124,6 +143,7 @@
     },
     "signalTurnsBefore": {
       "default": 3,
+      "description": "Number of earlier turns to include before a signal turn",
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
@@ -136,6 +156,7 @@
         "what was the",
         "do you remember"
       ],
+      "description": "Extra phrases that trigger an explicit recall search",
       "type": "array",
       "items": {
         "type": "string"
@@ -143,46 +164,56 @@
     },
     "dedupEnabled": {
       "default": true,
+      "description": "Skip duplicate memory saves by normalized content hash",
       "type": "boolean"
     },
     "dedupCacheSize": {
       "default": 500,
+      "description": "Maximum number of entries kept in the dedup cache",
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 9007199254740991
     },
     "entityContext": {
       "default": "User-assistant conversation. Format: [role: user]...[user:end] and [role: assistant]...[assistant:end].\n\nOnly extract things useful in FUTURE conversations. Most messages are not worth remembering.\n\nREMEMBER: lasting personal facts — dietary restrictions, preferences, personal details, workplace, location, tools, ongoing projects, routines, explicit \"remember this\" requests.\n\nDO NOT REMEMBER: temporary intents, one-time tasks, assistant actions (searching, writing files, generating code), assistant suggestions, implementation details, in-progress task status.\n\nRULES:\n- Assistant output is CONTEXT ONLY — never attribute assistant actions to the user\n- \"find X\" or \"do Y\" = one-time request, NOT a memory\n- Only store preferences explicitly stated (\"I like...\", \"I prefer...\", \"I always...\")\n- When in doubt, do NOT create a memory. Less is more.",
+      "description": "Short guidance passed to the entity-extraction pipeline",
       "type": "string"
     },
     "metadataStripping": {
       "default": true,
+      "description": "Strip injected metadata from memory search queries",
       "type": "boolean"
     },
     "relativeTimeDisplay": {
       "default": true,
+      "description": "Render memory timestamps as relative text (e.g. '2 hrs ago')",
       "type": "boolean"
     },
     "memoUsageFooter": {
       "default": true,
+      "description": "Append a compact memory-count footer to injected context",
       "type": "boolean"
     },
     "profileCrossArrayDedup": {
       "default": true,
+      "description": "Deduplicate profile facts across profile, project, and relevant-memory arrays",
       "type": "boolean"
     },
     "everyMessageRecall": {
       "default": false,
+      "description": "Run recall search on every user message (costly; default off)",
       "type": "boolean"
     },
     "reinjectEveryN": {
       "default": 0,
+      "description": "Re-inject memory every N completed turns (0 disables it)",
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
     },
     "autoCategoryTagging": {
       "default": false,
+      "description": "Classify memories into categories before storing them",
       "type": "boolean"
     }
   }

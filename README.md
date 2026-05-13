@@ -321,6 +321,9 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
   // Project tag generation strategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName"
   "projectTagStrategy": "hashGitRepoName",
 
+  // System prompt used as the memory-ingestion filter directive
+  "filterPrompt": "You are a stateful coding agent. Remember user's coding preferences, tech stack, and workflows.",
+
   // Extra keyword patterns for memory detection (regex)
   "keywordPatterns": ["log\\s+this", "write\\s+down"],
 

@@ -26,41 +26,85 @@ import { DEFAULTS } from "@/config/defaults";
  */
 export const SupermemoryConfigSchema = z.object({
   // Core knobs.
-  apiKey: z.string().startsWith("sm_").optional(),
-  similarityThreshold: z.number().gt(0).lte(1).catch(DEFAULTS.similarityThreshold),
-  maxMemories: z.number().positive().catch(DEFAULTS.maxMemories),
-  maxProjectMemories: z.number().positive().catch(DEFAULTS.maxProjectMemories),
-  maxProfileItems: z.number().positive().catch(DEFAULTS.maxProfileItems),
-  injectProfile: z.boolean().catch(DEFAULTS.injectProfile),
-  containerTagPrefix: z.string().catch(DEFAULTS.containerTagPrefix),
-  projectTagStrategy: z.enum(["hashDirectory", "hashGitRepoName", "rawGitRepoName"]).catch(DEFAULTS.projectTagStrategy),
-  userContainerTag: z.string().optional(),
-  projectContainerTag: z.string().optional(),
-  filterPrompt: z.string().catch(DEFAULTS.filterPrompt),
-  keywordPatterns: z.array(z.string()).catch(DEFAULTS.keywordPatterns),
-  compactionThreshold: z.number().gt(0).lte(1).catch(DEFAULTS.compactionThreshold),
+  apiKey: z.string().startsWith("sm_").optional().describe("Supermemory API key (can also use SUPERMEMORY_API_KEY env var)"),
+  similarityThreshold: z
+    .number()
+    .gt(0)
+    .lte(1)
+    .catch(DEFAULTS.similarityThreshold)
+    .describe("Min similarity score for memory retrieval (0-1)"),
+  maxMemories: z.number().positive().catch(DEFAULTS.maxMemories).describe("Max relevant memories injected per request"),
+  maxProjectMemories: z.number().positive().catch(DEFAULTS.maxProjectMemories).describe("Max project memories listed in context"),
+  maxProfileItems: z.number().positive().catch(DEFAULTS.maxProfileItems).describe("Max profile facts injected in context"),
+  injectProfile: z.boolean().catch(DEFAULTS.injectProfile).describe("Include user profile in injected context"),
+  containerTagPrefix: z
+    .string()
+    .catch(DEFAULTS.containerTagPrefix)
+    .describe("Prefix for auto-generated container tags (used when userContainerTag/projectContainerTag are not set)"),
+  projectTagStrategy: z
+    .enum(["hashDirectory", "hashGitRepoName", "rawGitRepoName"])
+    .catch(DEFAULTS.projectTagStrategy)
+    .describe("Strategy for generating the project container tag when projectContainerTag is not set"),
+  userContainerTag: z.string().optional().describe("Optional explicit user container tag (overrides auto-generated tag)"),
+  projectContainerTag: z.string().optional().describe("Optional explicit project container tag (overrides auto-generated tag)"),
+  filterPrompt: z.string().catch(DEFAULTS.filterPrompt).describe("System prompt used as the memory-ingestion filter directive"),
+  keywordPatterns: z
+    .array(z.string())
+    .catch(DEFAULTS.keywordPatterns)
+    .describe("Extra regex patterns for memory-trigger keyword detection"),
+  compactionThreshold: z
+    .number()
+    .gt(0)
+    .lte(1)
+    .catch(DEFAULTS.compactionThreshold)
+    .describe("Context usage ratio that triggers preemptive compaction (0-1)"),
 
   // Safe-on memory-feature knobs.
-  incrementalCapture: z.boolean().catch(DEFAULTS.incrementalCapture),
-  maxCaptureChars: z.number().positive().catch(DEFAULTS.maxCaptureChars),
-  postCompactionReinject: z.boolean().catch(DEFAULTS.postCompactionReinject),
-  sessionEndSave: z.boolean().catch(DEFAULTS.sessionEndSave),
-  signalExtraction: z.boolean().catch(DEFAULTS.signalExtraction),
-  signalKeywords: z.array(z.string()).catch([...DEFAULTS.signalKeywords]),
-  signalTurnsBefore: z.number().int().nonnegative().catch(DEFAULTS.signalTurnsBefore),
-  recallKeywordPatterns: z.array(z.string()).catch([...DEFAULTS.recallKeywordPatterns]),
-  dedupEnabled: z.boolean().catch(DEFAULTS.dedupEnabled),
-  dedupCacheSize: z.number().int().positive().catch(DEFAULTS.dedupCacheSize),
-  entityContext: z.string().catch(DEFAULTS.entityContext),
-  metadataStripping: z.boolean().catch(DEFAULTS.metadataStripping),
-  relativeTimeDisplay: z.boolean().catch(DEFAULTS.relativeTimeDisplay),
-  memoUsageFooter: z.boolean().catch(DEFAULTS.memoUsageFooter),
-  profileCrossArrayDedup: z.boolean().catch(DEFAULTS.profileCrossArrayDedup),
+  incrementalCapture: z.boolean().catch(DEFAULTS.incrementalCapture).describe("Save assistant turns progressively as they finish"),
+  maxCaptureChars: z.number().positive().catch(DEFAULTS.maxCaptureChars).describe("Maximum characters kept from any captured turn"),
+  postCompactionReinject: z.boolean().catch(DEFAULTS.postCompactionReinject).describe("Re-inject memory after context compaction"),
+  sessionEndSave: z.boolean().catch(DEFAULTS.sessionEndSave).describe("Save a final memory snapshot when the session ends or idles"),
+  signalExtraction: z.boolean().catch(DEFAULTS.signalExtraction).describe("Keep only turns that match signal keywords"),
+  signalKeywords: z
+    .array(z.string())
+    .catch([...DEFAULTS.signalKeywords])
+    .describe("Keywords that mark a turn as high-signal and trigger capture"),
+  signalTurnsBefore: z
+    .number()
+    .int()
+    .nonnegative()
+    .catch(DEFAULTS.signalTurnsBefore)
+    .describe("Number of earlier turns to include before a signal turn"),
+  recallKeywordPatterns: z
+    .array(z.string())
+    .catch([...DEFAULTS.recallKeywordPatterns])
+    .describe("Extra phrases that trigger an explicit recall search"),
+  dedupEnabled: z.boolean().catch(DEFAULTS.dedupEnabled).describe("Skip duplicate memory saves by normalized content hash"),
+  dedupCacheSize: z.number().int().positive().catch(DEFAULTS.dedupCacheSize).describe("Maximum number of entries kept in the dedup cache"),
+  entityContext: z.string().catch(DEFAULTS.entityContext).describe("Short guidance passed to the entity-extraction pipeline"),
+  metadataStripping: z.boolean().catch(DEFAULTS.metadataStripping).describe("Strip injected metadata from memory search queries"),
+  relativeTimeDisplay: z
+    .boolean()
+    .catch(DEFAULTS.relativeTimeDisplay)
+    .describe("Render memory timestamps as relative text (e.g. '2 hrs ago')"),
+  memoUsageFooter: z.boolean().catch(DEFAULTS.memoUsageFooter).describe("Append a compact memory-count footer to injected context"),
+  profileCrossArrayDedup: z
+    .boolean()
+    .catch(DEFAULTS.profileCrossArrayDedup)
+    .describe("Deduplicate profile facts across profile, project, and relevant-memory arrays"),
 
   // Costly-off memory-feature knobs.
-  everyMessageRecall: z.boolean().catch(DEFAULTS.everyMessageRecall),
-  reinjectEveryN: z.number().int().nonnegative().catch(DEFAULTS.reinjectEveryN),
-  autoCategoryTagging: z.boolean().catch(DEFAULTS.autoCategoryTagging),
+  everyMessageRecall: z
+    .boolean()
+    .catch(DEFAULTS.everyMessageRecall)
+    .describe("Run recall search on every user message (costly; default off)"),
+  reinjectEveryN: z
+    .number()
+    .int()
+    .nonnegative()
+    .catch(DEFAULTS.reinjectEveryN)
+    .describe("Re-inject memory every N completed turns (0 disables it)"),
+  autoCategoryTagging: z.boolean().catch(DEFAULTS.autoCategoryTagging).describe("Classify memories into categories before storing them"),
 });
 
 export type SupermemoryConfig = z.infer<typeof SupermemoryConfigSchema>;
