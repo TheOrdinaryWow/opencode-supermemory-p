@@ -1,5 +1,0 @@
-
-🧠 opencode-supermemory-p installer
-
-Step 1: Register plugin in OpenCode config
-Add plugin to /Users/user/.config/opencode/opencode.jsonc? (y/n) EXIT=0
