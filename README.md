@@ -455,7 +455,7 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 }
 ```
 
-Plugin-injected content (slash-command expansions, system reminders, session-context blocks) is filtered out at capture time. Memories ingested with this plugin enabled will not contain other plugins' markers, so no manual cleanup is needed for new sessions. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
+Messages containing plugin or orchestrator scaffolding (slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, etc.) are skipped entirely from the capture stream. Memories ingested with this plugin enabled will not contain other plugins' markers, so no manual cleanup is needed for new sessions. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
 
 ## Development
 
