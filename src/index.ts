@@ -8,7 +8,7 @@ import { handleEvent } from "@/events/handler";
 import { supermemoryClient } from "@/memory/client";
 import { getTags } from "@/memory/tags";
 import { createSessionState } from "@/session/state";
-import { defaultLogger, initLogger } from "@/shared/logger";
+import { initLogger, rootLogger } from "@/shared/logger";
 import { createSupermemoryTool } from "@/tool/index";
 
 export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
@@ -35,7 +35,9 @@ function createDeps(ctx: PluginInput) {
   const tags = getTags(ctx.directory);
   const sessionState = createSessionState();
   const isConfigured = () => !!config.apiKey;
-  const log = defaultLogger.info.bind(defaultLogger);
+  const log = (message: string, data?: unknown) => {
+    rootLogger.info(message, data as Record<string, unknown> | undefined);
+  };
   log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured() });
   if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
   return { client: supermemoryClient, config, tags, injectedSessions: sessionState, log, isConfigured };

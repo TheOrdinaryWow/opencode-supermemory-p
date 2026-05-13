@@ -2,10 +2,12 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { getLogger } from "@logtape/logtape";
 import { ensureDirSync } from "fs-extra";
 
 import { findNearestMessageWithFields } from "@/compaction/finder";
-import { defaultLogger } from "@/shared/logger";
+
+const logger = getLogger(["supermemory", "compaction", "message-store"]);
 
 /** On-disk roots captured at module-load time so tests can override $HOME first. */
 export const MESSAGE_STORAGE = join(homedir(), ".opencode", "messages");
@@ -61,7 +63,7 @@ export interface InjectOriginalMessage {
  */
 export function injectHookMessage(sessionID: string, hookContent: string, originalMessage: InjectOriginalMessage): boolean {
   if (!hookContent || hookContent.trim().length === 0) {
-    defaultLogger.info("[compaction] attempted to inject empty content, skipping");
+    logger.info("[compaction] attempted to inject empty content, skipping");
     return false;
   }
 
@@ -105,10 +107,10 @@ export function injectHookMessage(sessionID: string, hookContent: string, origin
     const partDir = join(PART_STORAGE, messageID);
     ensureDirSync(partDir);
     writeFileSync(join(partDir, `${partID}.json`), JSON.stringify(textPart, null, 2));
-    defaultLogger.info("[compaction] hook message injected", { sessionID, messageID });
+    logger.info("[compaction] hook message injected", { sessionID, messageID });
     return true;
   } catch (err) {
-    defaultLogger.info("[compaction] failed to inject hook message", { error: String(err) });
+    logger.info("[compaction] failed to inject hook message", { error: String(err) });
     return false;
   }
 }

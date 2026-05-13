@@ -31,6 +31,8 @@
     "url": "https://github.com/TheOrdinaryWow/opencode-supermemory-p"
   },
   "dependencies": {
+    "@logtape/file": "^2.0.7",
+    "@logtape/logtape": "^2.0.7",
     "@opencode-ai/plugin": "^1.0.162",
     "citty": "^0.2.2",
     "fs-extra": "^11.3.5",

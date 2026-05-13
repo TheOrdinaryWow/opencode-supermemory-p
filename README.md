@@ -107,7 +107,7 @@ They should see `supermemory` in the tools list. If not, check:
 
 1. Is `SUPERMEMORY_API_KEY` set?
 2. Is the plugin in `opencode.jsonc`?
-3. Check logs: `tail ~/.opencode-supermemory-p.log`
+3. Check logs: `tail ~/.local/share/opencode-supermemory-p/log/main.log`
 
 #### Step 5: Initialize codebase memory (optional)
 
@@ -302,7 +302,7 @@ Local install:
 ## Logs
 
 ```bash
-tail -f ~/.opencode-supermemory-p.log
+tail -f ~/.local/share/opencode-supermemory-p/log/main.log
 ```
 
 ## License

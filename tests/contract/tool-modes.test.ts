@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 //     values + explicit container-tag overrides
 //     (avoids depending on `git config user.email`).
 //   - Mock `src/shared/logger.ts` to a no-op so tests do not write
-//     to `~/.opencode-supermemory-p.log`.
+//     to `~/.local/share/opencode-supermemory-p/log/main.log`.
 //   - After `SupermemoryPlugin(ctx)` returns, install per-test method
 //     shadows on the `supermemoryClient` singleton instance. These
 //     own-properties intercept calls before the prototype method runs.
@@ -67,12 +67,21 @@ mock.module("supermemory", () => ({
 // ---------------------------------------------------------------------
 
 // ---------------------------------------------------------------------
-// Logger mock — avoid writing to ~/.opencode-supermemory-p.log during
+// Logger mock — avoid writing to ~/.local/share/opencode-supermemory-p/log/main.log during
 // tests (the module-level appendFileSync call is the loud one).
 // ---------------------------------------------------------------------
+const noop = () => undefined;
 mock.module(LOGGER_ABS, () => ({
-  initLogger: () => undefined,
-  defaultLogger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+  initLogger: noop,
+  resetLogger: noop,
+  rootLogger: {
+    trace: noop,
+    debug: noop,
+    info: noop,
+    warn: noop,
+    error: noop,
+    fatal: noop,
+  },
 }));
 
 // ---------------------------------------------------------------------

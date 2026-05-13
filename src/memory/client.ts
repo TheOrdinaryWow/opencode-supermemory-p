@@ -1,10 +1,12 @@
+import { getLogger } from "@logtape/logtape";
 import Supermemory from "supermemory";
 
 import { getConfig } from "@/config/loader";
 import type { AppError } from "@/shared/errors";
-import { defaultLogger } from "@/shared/logger";
 import { err, ok, type Result } from "@/shared/result";
 import type { ConversationIngestResponse, ConversationMessage, MemoryType } from "@/types/index";
+
+const logger = getLogger(["supermemory", "memory", "client"]);
 
 const TIMEOUT_MS = 30000;
 const MAX_CONVERSATION_CHARS = 100_000;
@@ -38,7 +40,7 @@ async function withResult<T>(label: string, fn: () => Promise<T>): Promise<Resul
     return ok(await fn());
   } catch (error) {
     const appError = toAppError(error);
-    defaultLogger.info(`${label}: error`, { error: appError.message });
+    logger.info(`${label}: error`, { error: appError.message });
     return err(appError);
   }
 }
@@ -87,7 +89,7 @@ export class SupermemoryClient {
 
   async searchMemories(query: string, containerTag: string): Promise<Result<SearchMemoriesResult, AppError>> {
     const config = getConfig();
-    defaultLogger.info("searchMemories: start", { containerTag });
+    logger.info("searchMemories: start", { containerTag });
     return withResult("searchMemories", async () => {
       const result = await withTimeout(
         this.getClient().search.memories({
@@ -99,13 +101,13 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      defaultLogger.info("searchMemories: success", { count: result.results?.length || 0 });
+      logger.info("searchMemories: success", { count: result.results?.length || 0 });
       return { success: true as const, ...result };
     });
   }
 
   async getProfile(containerTag: string, query?: string): Promise<Result<ProfileResult, AppError>> {
-    defaultLogger.info("getProfile: start", { containerTag });
+    logger.info("getProfile: start", { containerTag });
     return withResult("getProfile", async () => {
       const result = await withTimeout(
         this.getClient().profile({
@@ -114,7 +116,7 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      defaultLogger.info("getProfile: success", { hasProfile: !!result?.profile });
+      logger.info("getProfile: success", { hasProfile: !!result?.profile });
       return { success: true as const, ...result };
     });
   }
@@ -124,7 +126,7 @@ export class SupermemoryClient {
     containerTag: string,
     metadata?: { type?: MemoryType; tool?: string; [key: string]: unknown },
   ): Promise<Result<AddMemoryResult, AppError>> {
-    defaultLogger.info("addMemory: start", { containerTag, contentLength: content.length });
+    logger.info("addMemory: start", { containerTag, contentLength: content.length });
     return withResult("addMemory", async () => {
       const result = await withTimeout(
         this.getClient().memories.add({
@@ -134,22 +136,22 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      defaultLogger.info("addMemory: success", { id: result.id });
+      logger.info("addMemory: success", { id: result.id });
       return { success: true as const, ...result };
     });
   }
 
   async deleteMemory(memoryId: string): Promise<Result<DeleteMemoryResult, AppError>> {
-    defaultLogger.info("deleteMemory: start", { memoryId });
+    logger.info("deleteMemory: start", { memoryId });
     return withResult("deleteMemory", async () => {
       await withTimeout(this.getClient().memories.delete(memoryId), TIMEOUT_MS);
-      defaultLogger.info("deleteMemory: success", { memoryId });
+      logger.info("deleteMemory: success", { memoryId });
       return { success: true };
     });
   }
 
   async listMemories(containerTag: string, limit = 20): Promise<Result<ListMemoriesResult, AppError>> {
-    defaultLogger.info("listMemories: start", { containerTag, limit });
+    logger.info("listMemories: start", { containerTag, limit });
     return withResult("listMemories", async () => {
       const result = await withTimeout(
         this.getClient().memories.list({
@@ -161,7 +163,7 @@ export class SupermemoryClient {
         }),
         TIMEOUT_MS,
       );
-      defaultLogger.info("listMemories: success", { count: result.memories?.length || 0 });
+      logger.info("listMemories: success", { count: result.memories?.length || 0 });
       return { success: true as const, ...result };
     });
   }
@@ -172,7 +174,7 @@ export class SupermemoryClient {
     containerTags: string[],
     metadata?: Record<string, string | number | boolean>,
   ): Promise<Result<IngestConversationResult, AppError>> {
-    defaultLogger.info("ingestConversation: start", {
+    logger.info("ingestConversation: start", {
       conversationId,
       messageCount: messages.length,
       containerTags,
@@ -214,7 +216,7 @@ export class SupermemoryClient {
 
     if (savedIds.length === 0) {
       const error = firstError ?? ({ kind: "NetworkError", message: "Failed to ingest conversation" } satisfies AppError);
-      defaultLogger.info("ingestConversation: error", { conversationId, error: error.message });
+      logger.info("ingestConversation: error", { conversationId, error: error.message });
       return err(error);
     }
 
@@ -226,7 +228,7 @@ export class SupermemoryClient {
       status,
     };
 
-    defaultLogger.info("ingestConversation: success", {
+    logger.info("ingestConversation: success", {
       conversationId,
       status,
       storedCount: savedIds.length,

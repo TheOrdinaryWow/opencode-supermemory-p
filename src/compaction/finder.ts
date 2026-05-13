@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { defaultLogger as logger } from "@/shared/logger";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["supermemory", "compaction", "finder"]);
 
 /**
  * Minimal subset of an OpenCode stored message that compaction logic cares
