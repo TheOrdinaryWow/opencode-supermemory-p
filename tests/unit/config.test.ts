@@ -36,7 +36,7 @@ interface ConfigEvalResult {
     filterPrompt: string;
     keywordPatterns: string[];
     compactionThreshold: number;
-    // Memory-feature knobs (added in T1).
+    // Memory-feature knobs.
     incrementalCapture: boolean;
     maxCaptureChars: number;
     postCompactionReinject: boolean;
@@ -263,7 +263,7 @@ describe("loadConfig — fixture round-trips", () => {
         "always\\s+remember",
       ],
       compactionThreshold: 0.8,
-      // Safe-on memory-feature knobs (added in T1).
+      // Safe-on memory-feature knobs.
       incrementalCapture: true,
       maxCaptureChars: 5000,
       postCompactionReinject: true,
@@ -297,7 +297,7 @@ describe("loadConfig — fixture round-trips", () => {
       relativeTimeDisplay: true,
       memoUsageFooter: true,
       profileCrossArrayDedup: true,
-      // Costly-off memory-feature knobs (added in T1).
+      // Costly-off memory-feature knobs.
       everyMessageRecall: false,
       reinjectEveryN: 0,
       autoCategoryTagging: false,

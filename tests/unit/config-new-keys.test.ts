@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 // =====================================================================
-// T1 — Config Schema + Defaults: 18 new keys
+// Config Schema + Defaults: 18 new keys
 //
 // Locks the contract that every new memory-feature key:
 //   1. Has a default value in src/config/defaults.ts (DEFAULTS table)
@@ -15,7 +15,7 @@ import { describe, expect, it } from "bun:test";
 // non-trivial enabled value.
 // =====================================================================
 
-describe("T1: new constants — DEFAULT_SIGNAL_KEYWORDS / DEFAULT_RECALL_KEYWORD_PATTERNS / DEFAULT_ENTITY_CONTEXT", () => {
+describe("new constants — DEFAULT_SIGNAL_KEYWORDS / DEFAULT_RECALL_KEYWORD_PATTERNS / DEFAULT_ENTITY_CONTEXT", () => {
   it("DEFAULT_SIGNAL_KEYWORDS exports an array of exactly 17 English terms", async () => {
     const { DEFAULT_SIGNAL_KEYWORDS } = await import("@/config/defaults");
     expect(Array.isArray(DEFAULT_SIGNAL_KEYWORDS)).toBe(true);
@@ -62,7 +62,7 @@ describe("T1: new constants — DEFAULT_SIGNAL_KEYWORDS / DEFAULT_RECALL_KEYWORD
   });
 });
 
-describe("T1: SupermemoryConfigSchema — 15 safe-on defaults applied on empty input", () => {
+describe("SupermemoryConfigSchema — 15 safe-on defaults applied on empty input", () => {
   it("incrementalCapture defaults to true", async () => {
     const { SupermemoryConfigSchema } = await import("@/config/schema");
     expect(SupermemoryConfigSchema.parse({}).incrementalCapture).toBe(true);
@@ -144,7 +144,7 @@ describe("T1: SupermemoryConfigSchema — 15 safe-on defaults applied on empty i
   });
 });
 
-describe("T1: SupermemoryConfigSchema — 3 costly-off defaults applied on empty input", () => {
+describe("SupermemoryConfigSchema — 3 costly-off defaults applied on empty input", () => {
   it("everyMessageRecall defaults to false (costly)", async () => {
     const { SupermemoryConfigSchema } = await import("@/config/schema");
     expect(SupermemoryConfigSchema.parse({}).everyMessageRecall).toBe(false);
@@ -161,7 +161,7 @@ describe("T1: SupermemoryConfigSchema — 3 costly-off defaults applied on empty
   });
 });
 
-describe("T1: silent-recovery — malformed values for every new key fall back to default", () => {
+describe("silent-recovery — malformed values for every new key fall back to default", () => {
   it("every new key recovers from a wrong-type value via .catch()", async () => {
     const { SupermemoryConfigSchema } = await import("@/config/schema");
     const { DEFAULT_SIGNAL_KEYWORDS, DEFAULT_RECALL_KEYWORD_PATTERNS, DEFAULT_ENTITY_CONTEXT } = await import("@/config/defaults");
@@ -253,7 +253,7 @@ describe("T1: silent-recovery — malformed values for every new key fall back t
   });
 });
 
-describe("T1: SupermemoryConfig type — 13 existing keys preserved alongside 18 new keys", () => {
+describe("SupermemoryConfig type — 13 existing keys preserved alongside 18 new keys", () => {
   it("parse({}) returns the union of all 13 existing defaults plus all 18 new defaults", async () => {
     const { SupermemoryConfigSchema } = await import("@/config/schema");
     const result = SupermemoryConfigSchema.parse({});

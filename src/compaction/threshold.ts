@@ -1,6 +1,6 @@
 /**
  * Compaction threshold constants and the pure decision function. The shipped
- * hook in src/services/compaction.ts still inlines the gate today; T17 will
+ * hook in src/services/compaction.ts still inlines the gate today; a future
  * collapse that onto computeShouldCompact(). Until then, this module is the
  * single source of truth for the constants so tests, future call sites and
  * config audits all agree on one value.
@@ -53,7 +53,7 @@ export interface ShouldCompactResult {
  * Pure decision: should we trigger compaction for this session right now?
  * Mirrors the gate ordering in createCompactionHook → checkAndTriggerCompaction
  * (in-progress / cooldown / summary / min-tokens / threshold) so behaviour stays
- * identical when T17 wires this in. totalUsed and usageRatio are always
+ * identical once fully wired in. totalUsed and usageRatio are always
  * computed so the caller can log them regardless of the decision.
  */
 export function computeShouldCompact(input: ShouldCompactInput): ShouldCompactResult {
