@@ -40,7 +40,7 @@ export async function handleMessageUpdatedForCapture(input: EventMessageUpdated,
 
     const allParts = info.parts ?? [];
     const boundary = createPromptBoundary(allParts, { sessionID, role: "assistant" });
-    if (!boundary.userText) return;
+    if (boundary.isPolluted || !boundary.userText) return;
 
     const cleanPart: MessagePart = { type: "text", text: boundary.userText };
     const message: Message = {

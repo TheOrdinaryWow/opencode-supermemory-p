@@ -1,395 +1,166 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-  createPromptBoundary,
-  extractUserPrompt,
-  extractUserPromptFromParts,
-  sanitizeMemoryContextForInjection,
-  type TextPartLike,
-} from "@/shared/user-prompt";
+import { createPromptBoundary, isPolluted, sanitizeMemoryContextForInjection, type TextPartLike } from "@/shared/user-prompt";
 
 const OMO_START_WORK_MARKER = "You are starting a Sisyphus work session.";
 
+describe("isPolluted", () => {
+  it("returns false for empty / undefined input", () => {
+    expect(isPolluted("")).toBe(false);
+    expect(isPolluted(undefined)).toBe(false);
+    expect(isPolluted(null)).toBe(false);
+  });
+
+  it("returns false for plain user text", () => {
+    expect(isPolluted("hello world, please refactor auth.ts")).toBe(false);
+    expect(isPolluted("we use TanStack Query for data fetching")).toBe(false);
+  });
+
+  it("flags every OMO / plugin block-wrapper opening tag", () => {
+    expect(isPolluted("<auto-slash-command>x")).toBe(true);
+    expect(isPolluted("<command-instruction>x")).toBe(true);
+    expect(isPolluted("<session-context>x")).toBe(true);
+    expect(isPolluted("<system-reminder>x")).toBe(true);
+    expect(isPolluted("<supermemory-context>x")).toBe(true);
+    expect(isPolluted("<user-request>x</user-request>")).toBe(true);
+    expect(isPolluted("<user-task>x</user-task>")).toBe(true);
+  });
+
+  it("flags Sisyphus <Work_Context> wrapper", () => {
+    expect(isPolluted("<Work_Context>x</Work_Context>")).toBe(true);
+  });
+
+  it("flags Sisyphus task brief headers (## F1: through ## F9:)", () => {
+    expect(isPolluted("## F1: Plan Compliance Audit")).toBe(true);
+    expect(isPolluted("## F2: Code Quality Review")).toBe(true);
+    expect(isPolluted("  ## F9: edge case")).toBe(true);
+  });
+
+  it("flags Sisyphus plan-management markers", () => {
+    expect(isPolluted("## Auto-Selected Plan")).toBe(true);
+    expect(isPolluted("## Plan Not Found")).toBe(true);
+    expect(isPolluted("boulder.json has been created. Read the plan.")).toBe(true);
+  });
+
+  it("flags Sisyphus mode indicators on their own line", () => {
+    expect(isPolluted("[analyze-mode]")).toBe(true);
+    expect(isPolluted("[search-mode]")).toBe(true);
+    expect(isPolluted("[deep-mode]")).toBe(true);
+    expect(isPolluted("[ultrawork-mode]")).toBe(true);
+    expect(isPolluted("[visual-engineering-mode]")).toBe(true);
+  });
+
+  it("flags system directives and recovery prompts", () => {
+    expect(isPolluted("[SYSTEM DIRECTIVE: OH-MY-OPENCODE - X]")).toBe(true);
+    expect(isPolluted("[restore checkpointed session agent configuration after compaction]")).toBe(true);
+    expect(isPolluted("<!-- OMO_INTERNAL_INITIATOR -->")).toBe(true);
+  });
+
+  it("flags standalone scaffolding signature strings", () => {
+    expect(isPolluted(OMO_START_WORK_MARKER)).toBe(true);
+    expect(isPolluted("MANDATORY delegate_task params: ALWAYS include load_skills=[]")).toBe(true);
+  });
+
+  it("flags polluted message even when buried mid-text", () => {
+    expect(isPolluted("user said: hi\n<system-reminder>noise</system-reminder>\nmore text")).toBe(true);
+  });
+});
+
 describe("createPromptBoundary", () => {
-  it("carries rawText (joined eligible parts) alongside userText", () => {
-    const parts: TextPartLike[] = [{ type: "text", text: "hello world" }];
+  it("returns frozen, empty boundary for missing or all-filtered parts", () => {
+    const a = createPromptBoundary(undefined);
+    expect(a.rawText).toBe("");
+    expect(a.userText).toBe("");
+    expect(a.isPolluted).toBe(false);
+    expect(Object.isFrozen(a)).toBe(true);
+
+    const b = createPromptBoundary([{ type: "text", text: "x", synthetic: true }]);
+    expect(b.rawText).toBe("");
+    expect(b.userText).toBe("");
+    expect(b.isPolluted).toBe(false);
+  });
+
+  it("filters synthetic + ignored + non-text parts before joining", () => {
+    const parts: TextPartLike[] = [
+      { type: "text", text: "from supermemory injection", synthetic: true },
+      { type: "tool", text: "tool output" },
+      { type: "text", text: "ignored fragment", ignored: true },
+      { type: "text", text: "real user input" },
+    ];
     const boundary = createPromptBoundary(parts);
-    expect(boundary.rawText).toBe("hello world");
+    expect(boundary.rawText).toBe("real user input");
+    expect(boundary.userText).toBe("real user input");
+    expect(boundary.isPolluted).toBe(false);
+  });
+
+  it("returns raw text trimmed when no wrappers are present", () => {
+    const boundary = createPromptBoundary([{ type: "text", text: "  hello world  " }]);
     expect(boundary.userText).toBe("hello world");
-    expect(boundary.source).toBe("raw-text");
+  });
+
+  it("extracts <user-request> body and marks polluted (slash-command path)", () => {
+    const expansion = `<command-instruction>${OMO_START_WORK_MARKER}</command-instruction>\n<user-request>refactor auth.ts</user-request>`;
+    const boundary = createPromptBoundary([{ type: "text", text: expansion }]);
+
+    expect(boundary.userText).toBe("refactor auth.ts");
+    // Even though we extract the body for query use, the message itself is
+    // still polluted — capture-path callers must skip it.
+    expect(boundary.isPolluted).toBe(true);
+  });
+
+  it("extracts <user-task> body and marks polluted", () => {
+    const expansion = "<command-instruction>x</command-instruction>\n<user-task>fix the failing test</user-task>";
+    const boundary = createPromptBoundary([{ type: "text", text: expansion }]);
+    expect(boundary.userText).toBe("fix the failing test");
+    expect(boundary.isPolluted).toBe(true);
+  });
+
+  it("joins multiple user wrappers in order", () => {
+    const raw = "<user-request>one</user-request>\nmid noise\n<user-task>two</user-task>";
+    const boundary = createPromptBoundary([{ type: "text", text: raw }]);
+    expect(boundary.userText).toBe("one\ntwo");
   });
 
   it("attaches sessionID and role from context", () => {
-    const boundary = createPromptBoundary([{ type: "text", text: "x" }], {
-      sessionID: "ses_1",
-      role: "user",
-    });
+    const boundary = createPromptBoundary([{ type: "text", text: "x" }], { sessionID: "ses_1", role: "user" });
     expect(boundary.sessionID).toBe("ses_1");
     expect(boundary.role).toBe("user");
   });
 
-  it("rawText preserves OMO wrapper while userText extracts inner content", () => {
-    const omoExpansion = `<command-instruction>${OMO_START_WORK_MARKER}</command-instruction>\n<user-request>real ask</user-request>`;
-    const boundary = createPromptBoundary([{ type: "text", text: omoExpansion }]);
-    expect(boundary.rawText).toBe(omoExpansion);
-    expect(boundary.userText).toBe("real ask");
-    expect(boundary.source).toBe("wrapped-user-content");
+  it("plain user prompt is non-polluted (capture allowed)", () => {
+    const boundary = createPromptBoundary([{ type: "text", text: "remember that we use Bun" }]);
+    expect(boundary.isPolluted).toBe(false);
   });
 
-  it("returns empty boundary for empty parts", () => {
-    const boundary = createPromptBoundary([]);
-    expect(boundary.userText).toBe("");
-    expect(boundary.rawText).toBe("");
-    expect(boundary.source).toBe("empty");
-  });
-
-  it("excludes synthetic parts from rawText (those are NOT user input)", () => {
-    const parts: TextPartLike[] = [
-      { type: "text", text: "<supermemory-context>memory</supermemory-context>", synthetic: true },
-      { type: "text", text: "real input" },
-    ];
-    const boundary = createPromptBoundary(parts);
-    expect(boundary.rawText).toBe("real input");
-    expect(boundary.userText).toBe("real input");
-  });
-
-  it("is frozen (immutable)", () => {
-    const boundary = createPromptBoundary([{ type: "text", text: "x" }]);
-    expect(Object.isFrozen(boundary)).toBe(true);
-  });
-
-  it("undefined parts produces empty boundary with context still attached", () => {
-    const boundary = createPromptBoundary(undefined, { sessionID: "ses_x", role: "assistant" });
-    expect(boundary.userText).toBe("");
-    expect(boundary.rawText).toBe("");
-    expect(boundary.sessionID).toBe("ses_x");
-    expect(boundary.role).toBe("assistant");
-  });
-});
-
-describe("extractUserPrompt", () => {
-  it("returns wrapped content from <user-request>", () => {
-    const raw = `<command-instruction>
-${OMO_START_WORK_MARKER}
-Do work.
-</command-instruction>
-
-<session-context>
-Session ID: ses_abc
-Timestamp: 2026-05-14T00:00:00Z
-</session-context>
-
-<user-request>
-help me refactor auth.ts
-</user-request>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("help me refactor auth.ts");
-    expect(result.source).toBe("wrapped-user-content");
-  });
-
-  it("returns wrapped content from <user-task>", () => {
-    const raw = `<command-instruction>
-Do something
-</command-instruction>
-
-<user-task>
-fix the failing test
-</user-task>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("fix the failing test");
-    expect(result.source).toBe("wrapped-user-content");
-  });
-
-  it("joins multiple user wrappers in order", () => {
-    const raw = `<user-request>
-first request
-</user-request>
-
-mid noise
-
-<user-task>
-second request
-</user-task>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("first request\nsecond request");
-    expect(result.source).toBe("wrapped-user-content");
-  });
-
-  it("returns empty when wrapper is empty", () => {
-    const raw = `<command-instruction>stuff</command-instruction>
-<user-request></user-request>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("");
-    expect(result.source).toBe("empty");
-  });
-
-  it("returns plain user prompt unchanged", () => {
-    const raw = "just a normal question about typescript generics";
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe(raw);
-    expect(result.source).toBe("raw-text");
-  });
-
-  it("strips <system-reminder> when no user wrapper present", () => {
-    const raw = `<system-reminder>
-[SYSTEM DIRECTIVE: OH-MY-OPENCODE - SINGLE TASK ONLY]
-some reminder body
-</system-reminder>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("");
-    expect(result.source).toBe("empty");
-    expect(result.strippedMarkers).toContain("system-reminder");
-  });
-
-  it("strips [SYSTEM DIRECTIVE: ...] prefix lines", () => {
-    const raw = `[SYSTEM DIRECTIVE: OH-MY-OPENCODE - BOULDER CONTINUATION]
-
-You have an active work plan with incomplete tasks.
-keep working.`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toContain("You have an active work plan");
-    expect(result.text).not.toContain("[SYSTEM DIRECTIVE");
-    expect(result.source).toBe("sanitized-text");
-  });
-
-  it("strips OMO checkpoint restore prompt", () => {
-    const raw = `[restore checkpointed session agent configuration after compaction]
-<!-- OMO_INTERNAL_INITIATOR -->`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("");
-    expect(result.source).toBe("empty");
-  });
-
-  it("prefers <user-request> over <command-instruction>", () => {
-    const raw = `<command-instruction>
-${OMO_START_WORK_MARKER}
-</command-instruction>
-
-<user-request>
-the actual prompt
-</user-request>`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("the actual prompt");
-    expect(result.source).toBe("wrapped-user-content");
-  });
-
-  it("preserves <session-context> inside code fence", () => {
-    const raw = `here is the OMO template:
-
-\`\`\`xml
-<session-context>
-Session ID: $SESSION_ID
-</session-context>
-\`\`\`
-
-please explain how this works`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toContain("<session-context>");
-    expect(result.text).toContain("please explain how this works");
-  });
-
-  it("preserves prose + code fence, strips real injected block", () => {
-    const raw = `<system-reminder>
-ignore me
-</system-reminder>
-
-here is some code:
-
-\`\`\`ts
-const x = "<user-request>not real</user-request>";
-\`\`\`
-
-end of message`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toContain("here is some code");
-    expect(result.text).toContain("end of message");
-    expect(result.text).toContain('const x = "<user-request>not real</user-request>"');
-    expect(result.text).not.toContain("ignore me");
-  });
-
-  it("strips <supermemory-context> wrappers from prior injections", () => {
-    const raw = `<supermemory-context>
-[SUPERMEMORY]
-User Profile:
-- Likes brevity
-</supermemory-context>
-
-actual user message`;
-
-    const result = extractUserPrompt(raw);
-    expect(result.text).toBe("actual user message");
-    expect(result.source).toBe("sanitized-text");
-  });
-
-  it("handles malformed tags conservatively (no catastrophic deletion)", () => {
-    const raw = `<user-request>
-no closing tag, this should still work
-
-normal text after`;
-
-    const result = extractUserPrompt(raw);
-    // unclosed wrapper falls back to denylist sanitize; user content preserved
-    expect(result.text).toContain("no closing tag");
-    expect(result.text).toContain("normal text after");
-  });
-
-  it("processes ~70KB input quickly and bounds output", () => {
-    const filler = "lorem ipsum ".repeat(7000); // ~84KB
-    const raw = `<system-reminder>${filler}</system-reminder>
-
-<user-request>
-real ask
-</user-request>`;
-
-    const start = Date.now();
-    const result = extractUserPrompt(raw);
-    const elapsed = Date.now() - start;
-
-    expect(elapsed).toBeLessThan(500);
-    expect(result.text).toBe("real ask");
-    expect(result.source).toBe("wrapped-user-content");
-  });
-});
-
-describe("extractUserPromptFromParts", () => {
-  it("skips synthetic parts", () => {
-    const parts: TextPartLike[] = [
-      { type: "text", text: "from supermemory injection", synthetic: true },
-      { type: "text", text: "actual user input" },
-    ];
-
-    const result = extractUserPromptFromParts(parts);
-    expect(result.text).toBe("actual user input");
-  });
-
-  it("skips ignored parts", () => {
-    const parts: TextPartLike[] = [
-      { type: "text", text: "irrelevant", ignored: true },
-      { type: "text", text: "this is the real one" },
-    ];
-
-    const result = extractUserPromptFromParts(parts);
-    expect(result.text).toBe("this is the real one");
-  });
-
-  it("ignores non-text parts", () => {
-    const parts: TextPartLike[] = [
-      { type: "tool", text: "tool output" },
-      { type: "text", text: "user text" },
-    ];
-
-    const result = extractUserPromptFromParts(parts);
-    expect(result.text).toBe("user text");
-  });
-
-  it("joins multiple eligible parts and extracts wrappers across them", () => {
-    const parts: TextPartLike[] = [
-      { type: "text", text: "<command-instruction>cmd</command-instruction>" },
-      { type: "text", text: "<user-request>real prompt</user-request>" },
-    ];
-
-    const result = extractUserPromptFromParts(parts);
-    expect(result.text).toBe("real prompt");
-  });
-
-  it("returns empty when all parts filtered or empty", () => {
-    const parts: TextPartLike[] = [
-      { type: "text", text: "synthetic data", synthetic: true },
-      { type: "text", text: "", synthetic: false },
-    ];
-
-    const result = extractUserPromptFromParts(parts);
-    expect(result.text).toBe("");
-    expect(result.source).toBe("empty");
-  });
-
-  it("handles undefined parts list", () => {
-    const result = extractUserPromptFromParts(undefined);
-    expect(result.text).toBe("");
-    expect(result.source).toBe("empty");
+  it("polluted messages with non-wrapper content keep userText = raw text (debug/log usable)", () => {
+    const polluted = "<system-reminder>do x</system-reminder>\nfollow-up";
+    const boundary = createPromptBoundary([{ type: "text", text: polluted }]);
+    expect(boundary.isPolluted).toBe(true);
+    // No user-wrapper present, so userText is the raw trimmed text. The
+    // important guarantee is `isPolluted: true` — capture callers will skip.
+    expect(boundary.userText).toContain("follow-up");
   });
 });
 
 describe("sanitizeMemoryContextForInjection", () => {
-  it("removes both OMO start-work-hook trigger markers", () => {
-    const polluted = `[SUPERMEMORY]
-Project Knowledge:
-- [100%] Past session contained:
-  ${OMO_START_WORK_MARKER}
-  <session-context>Session ID: foo</session-context>`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-
-    expect(safe.includes("<session-context>") && safe.includes(OMO_START_WORK_MARKER)).toBe(false);
+  it("returns empty string for empty input", () => {
+    expect(sanitizeMemoryContextForInjection("")).toBe("");
   });
 
-  it("removes <command-instruction> blocks", () => {
-    const polluted = `User Profile:
-- pref: be concise
-
-<command-instruction>
-You are starting a Sisyphus work session.
-</command-instruction>`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-
-    expect(safe).not.toContain("<command-instruction>");
-    expect(safe).not.toContain("</command-instruction>");
-    expect(safe).toContain("be concise");
+  it("passes clean memory text through unchanged", () => {
+    const clean = "[SUPERMEMORY]\n\nUser Profile:\n- Prefers Bun\n\nProject Knowledge:\n- Uses TanStack Query";
+    expect(sanitizeMemoryContextForInjection(clean)).toBe(clean);
   });
 
-  it("removes <auto-slash-command> blocks", () => {
-    const polluted = `<auto-slash-command>
-# /start-work Command
-${OMO_START_WORK_MARKER}
-</auto-slash-command>
-
-normal memo`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-
-    expect(safe).not.toContain("<auto-slash-command>");
-    expect(safe).not.toContain(OMO_START_WORK_MARKER);
-    expect(safe).toContain("normal memo");
-  });
-
-  it("preserves legitimate content outside injection markers", () => {
-    const polluted = `User Profile:
-- Likes typescript
-- Project: opencode-supermemory-p
-- Build: bun run build`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-
-    expect(safe).toContain("Likes typescript");
-    expect(safe).toContain("Project: opencode-supermemory-p");
-    expect(safe).toContain("Build: bun run build");
-  });
-
-  it("removes SYSTEM DIRECTIVE prefix lines from memory text", () => {
-    const polluted = `Project memo:
-[SYSTEM DIRECTIVE: OH-MY-OPENCODE - BOULDER CONTINUATION]
-- task remaining: x`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-    expect(safe).not.toContain("[SYSTEM DIRECTIVE");
-    expect(safe).toContain("task remaining: x");
-  });
-
-  it("neutralizes lone marker strings even outside tags", () => {
-    const polluted = `Past summary: ${OMO_START_WORK_MARKER} ran successfully`;
-
-    const safe = sanitizeMemoryContextForInjection(polluted);
-    expect(safe).not.toContain(OMO_START_WORK_MARKER);
+  it("returns empty string when memory text contains ANY pollution marker", () => {
+    // The point: legacy memories captured before pollution filtering may
+    // contain markers. Rather than partially strip them (fragile), we drop
+    // the whole injection. Better no context than markers that re-trigger
+    // downstream plugins.
+    expect(sanitizeMemoryContextForInjection(`prefix ${OMO_START_WORK_MARKER} suffix`)).toBe("");
+    expect(sanitizeMemoryContextForInjection("user pref\n<session-context>x</session-context>")).toBe("");
+    expect(sanitizeMemoryContextForInjection("## F1: audit body")).toBe("");
+    expect(sanitizeMemoryContextForInjection("[analyze-mode]\nbody")).toBe("");
+    expect(sanitizeMemoryContextForInjection("<Work_Context>policy</Work_Context>")).toBe("");
   });
 });

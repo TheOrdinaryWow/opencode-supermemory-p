@@ -140,4 +140,34 @@ describe("handleMessageUpdatedForCapture", () => {
 
     expect(addMemory).toHaveBeenCalledTimes(0);
   });
+
+  it("skips a message that contains orchestrator scaffolding (Work_Context)", async () => {
+    const { deps, addMemory } = makeDeps();
+
+    await handleMessageUpdatedForCapture(
+      makeEvent({ parts: [{ type: "text", text: "<Work_Context>policy</Work_Context>\nstuff" }] }),
+      deps,
+    );
+
+    expect(addMemory).toHaveBeenCalledTimes(0);
+  });
+
+  it("skips a message that contains a system reminder", async () => {
+    const { deps, addMemory } = makeDeps();
+
+    await handleMessageUpdatedForCapture(makeEvent({ parts: [{ type: "text", text: "<system-reminder>do x</system-reminder>" }] }), deps);
+
+    expect(addMemory).toHaveBeenCalledTimes(0);
+  });
+
+  it("skips a message that opens with a Sisyphus mode indicator", async () => {
+    const { deps, addMemory } = makeDeps();
+
+    await handleMessageUpdatedForCapture(
+      makeEvent({ parts: [{ type: "text", text: "[analyze-mode]\nANALYSIS MODE...\n\n---\n\nreal stuff" }] }),
+      deps,
+    );
+
+    expect(addMemory).toHaveBeenCalledTimes(0);
+  });
 });

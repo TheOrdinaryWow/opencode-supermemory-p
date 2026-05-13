@@ -141,5 +141,27 @@ describe("handlePreCompactionSave", () => {
       // Full last-N dump including the assistant turn that followed the signal.
       expect(addMemory.mock.calls[0]?.[0]).toBe("[user] remember this fact\n[assistant] noted");
     });
+
+    it("drops polluted messages (Work_Context/system-reminder/mode) from the dump", async () => {
+      const input = { sessionID: "ses_mixed", output: { context: [] as string[] } };
+      const { deps, addMemory } = makeDeps(
+        [
+          makeMessage("m1", "user", "<Work_Context>policy</Work_Context>"),
+          makeMessage("m2", "user", "please remember this real ask"),
+          makeMessage("m3", "assistant", "acknowledged"),
+          makeMessage("m4", "user", "<system-reminder>do this</system-reminder>"),
+        ],
+        { config: makeConfig({ signalExtraction: true }) },
+      );
+
+      await handlePreCompactionSave(input, deps);
+
+      expect(addMemory).toHaveBeenCalledTimes(1);
+      const dumped = addMemory.mock.calls[0]?.[0] ?? "";
+      expect(dumped).not.toContain("Work_Context");
+      expect(dumped).not.toContain("system-reminder");
+      expect(dumped).toContain("please remember this real ask");
+      expect(dumped).toContain("acknowledged");
+    });
   });
 });

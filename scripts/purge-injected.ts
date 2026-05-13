@@ -26,16 +26,23 @@ import { join } from "node:path";
 import { stripJsoncComments } from "@/shared/jsonc";
 
 export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
-  /<auto-slash-command>/i,
-  /<command-instruction>/i,
-  /<session-context>/i,
-  /<system-reminder>/i,
-  /<user-request>/i,
-  /<user-task>/i,
+  // Plugin block wrappers (OMO and similar)
+  /<(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|user-request|user-task)\b/i,
+  // Sisyphus orchestrator scaffold wrapper
+  /<Work_Context\b/,
+  // System directives
   /\[SYSTEM DIRECTIVE:/i,
   /\[restore checkpointed session/i,
   /<!--\s*OMO_INTERNAL_INITIATOR\s*-->/i,
+  // Sisyphus task briefs / plan management / mode indicators
+  /^[\t ]*## F\d+:/m,
+  /^[\t ]*## Auto-Selected Plan[\t ]*$/m,
+  /^[\t ]*## Plan Not Found\b/m,
+  /^[\t ]*boulder\.json has been created\./m,
+  /^[\t ]*\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\t ]*$/m,
+  // Standalone scaffolding signature strings
   /You are starting a Sisyphus work session\./,
+  /MANDATORY delegate_task params:/,
 ];
 
 export interface MemoryRecord {

@@ -3,6 +3,7 @@ import { getLogger } from "@logtape/logtape";
 import { type CompactionState, createCompactionState } from "@/compaction/state";
 import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "@/compaction/threshold";
 import { supermemoryClient } from "@/memory/client";
+import { isPolluted } from "@/shared/user-prompt";
 
 const logger = getLogger(["supermemory", "compaction"]);
 
@@ -160,6 +161,9 @@ export async function performCompaction(deps: HookDeps, sessionID: string, lastA
 async function saveSummaryAsMemory(deps: HookDeps, sessionID: string, summaryContent: string): Promise<void> {
   if (!summaryContent || summaryContent.length < 100)
     return logger.info("[compaction] summary too short to save", { sessionID, length: summaryContent.length });
+  if (isPolluted(summaryContent)) {
+    return logger.info("[compaction] summary contains plugin scaffolding, skipping save", { sessionID });
+  }
   try {
     const result = await supermemoryClient.addMemory(`[Session Summary]\n${summaryContent}`, deps.tags.project, {
       type: "conversation",

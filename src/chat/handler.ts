@@ -107,15 +107,14 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     const userMessage = boundary.userText;
 
     if (!userMessage) {
-      deps.log("chat.message: empty message, skipping", { source: boundary.source });
+      deps.log("chat.message: empty message, skipping", { isPolluted: boundary.isPolluted });
       return;
     }
 
     deps.log("chat.message: processing", {
       messagePreview: userMessage.slice(0, 100),
       partsCount: output.parts.length,
-      source: boundary.source,
-      strippedMarkers: boundary.strippedMarkers,
+      isPolluted: boundary.isPolluted,
     });
 
     if (detectMemoryKeyword(userMessage, deps.config)) {

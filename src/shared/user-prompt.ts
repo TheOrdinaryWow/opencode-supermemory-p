@@ -1,90 +1,29 @@
 /**
- * User prompt boundary: a single source of truth for "what did the user
- * actually type" in a chat message.
+ * Prompt boundary: the contract between OpenCode's mutable `parts` bus and
+ * supermemory-p's domain logic. Every hook that needs to know "what did the
+ * user actually say" consumes a `PromptBoundary` rather than parsing parts
+ * directly.
  *
- * OpenCode's `output.parts` is a shared, mutable prompt bus: it carries the
- * user's input, slash-command expansions, system reminders, recovery prompts,
- * memory injections, and more. Many of those entries are produced by other
- * plugins (notably oh-my-openagent / OMO) and intentionally LOOK like user
- * input because they overwrite the user's part text directly. They are not
- * marked `synthetic: true`.
+ * Design principle — `polluted-skip`:
+ *   Either a message is clean and we treat it as user input verbatim, or it
+ *   contains ANY plugin/orchestrator scaffolding marker and we skip it
+ *   ENTIRELY from the capture stream. We do not try to surgically strip out
+ *   parts of a message — that path leads to fragile regex chains chasing
+ *   every new marker some upstream framework introduces.
  *
- * If supermemory treats every text part as user input, three things break:
- *   1. Searches/profile queries get polluted by plugin templates.
- *   2. Long-term memory ingests OMO marker strings (e.g. the start-work
- *      template) — turning every future session into a context-injection
- *      trojan that re-triggers OMO's start-work-hook into forcing the
- *      `atlas` agent.
- *   3. Keyword detection fires on plugin reminders, not user intent.
+ * The boundary surface is two pieces of information:
+ *   - `userText`: best-effort extraction of the user's typed input. For
+ *     messages wrapped in `<user-request>` or `<user-task>` (slash-command
+ *     expansion), we pull the inner body. Otherwise we return the raw
+ *     concatenated text. Use this for SEARCH and KEYWORD DETECTION.
+ *   - `isPolluted`: true when the raw text matches ANY pollution pattern.
+ *     Use this to GATE CAPTURE. Polluted messages must never enter
+ *     long-term memory.
  *
- * This module is the boundary. Every place that consumes "user text" from
- * `parts` MUST route through `extractUserPromptFromParts` (or the lower-level
- * `extractUserPrompt`). Every place that injects supermemory's own context
- * back into a chat message MUST sanitize it through
- * `sanitizeMemoryContextForInjection` first.
- *
- * Strategy (per Oracle review):
- *   1. Honor OpenCode part flags: skip `synthetic === true` and
- *      `ignored === true` parts.
- *   2. Code fences (triple-backtick blocks) are sacrosanct — we never alter
- *      content inside them. This lets users paste source code (including
- *      OMO templates we are debugging right now) without lossy filtering.
- *   3. In prose, prefer explicit user-content wrappers: `<user-request>` and
- *      `<user-task>` are how OMO wraps the actual user arguments inside a
- *      slash-command expansion. If present, extract them.
- *   4. Fall back to a denylist removal of known plugin-injected block tags
- *      (`<auto-slash-command>`, `<command-instruction>`, `<session-context>`,
- *      `<system-reminder>`, `<supermemory-context>`) plus line-prefix
- *      directives (`[SYSTEM DIRECTIVE: ...]`, the OMO checkpoint restore
- *      prompt, the OMO_INTERNAL_INITIATOR marker).
- *   5. Conservative on malformed input — leave user content intact rather
- *      than risk catastrophic deletion. Orphan opening/closing tags are not
- *      stripped from `extractUserPrompt`; we trust that the user's text is
- *      more important than perfect cleanup.
- *
- * `sanitizeMemoryContextForInjection` is more aggressive: when we are about
- * to inject memory text BACK into a chat message, we cannot afford any
- * leftover wrapper or trigger phrase, because OMO and friends will read the
- * combined parts and react to anything that looks like their own marker.
- * Memory is structured data we produce — there is no user-typed code fence
- * to preserve, so we strip everything known to be dangerous, including bare
- * trigger phrases like the start-work-hook canary string.
+ * `POLLUTION_PATTERNS` is the single source of truth used by both the
+ * runtime hooks and the standalone `scripts/purge-injected.ts` script.
+ * Add new markers here.
  */
-
-const USER_WRAPPER_PATTERN = /<(user-request|user-task)>([\s\S]*?)<\/\1>/gi;
-
-// Block-level wrappers OMO and friends inject around their own content. The
-// supermemory-context entry exists so future supermemory injections can be
-// stripped cleanly if they re-enter the parts stream (e.g. via conversation
-// history fed back through SDK calls).
-const BLOCK_TAGS_TO_STRIP = [
-  "auto-slash-command",
-  "command-instruction",
-  "session-context",
-  "system-reminder",
-  "supermemory-context",
-] as const;
-
-// Tags that may appear in memory text as an orphan opener/closer after
-// chunking. Includes the user wrappers — memory has no business carrying an
-// active <user-request> tag; if it does, the memory was captured from a
-// previously polluted session.
-const ORPHAN_TAG_PATTERN =
-  /<\/?(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|user-request|user-task)[^>]*>/gi;
-
-const LINE_PREFIXES_TO_STRIP: RegExp[] = [
-  /^[\t ]*\[SYSTEM DIRECTIVE:[^\]]*\].*$/gm,
-  /^[\t ]*\[restore checkpointed session agent configuration after compaction\][\t ]*$/gm,
-  /^[\t ]*<!--\s*OMO_INTERNAL_INITIATOR\s*-->[\t ]*$/gm,
-];
-
-// Standalone trigger phrases that OMO hooks key off without any surrounding
-// tag. Currently the start-work-hook checks for this canary string.
-const STANDALONE_TRIGGER_PHRASES: RegExp[] = [/You are starting a Sisyphus work session\./g];
-
-const CODE_FENCE_PATTERN = /```[\s\S]*?```/g;
-
-export type SourceKind = "wrapped-user-content" | "sanitized-text" | "raw-text" | "empty";
 
 export type MessageRole = "user" | "assistant";
 
@@ -95,39 +34,30 @@ export interface TextPartLike {
   ignored?: boolean;
 }
 
-/**
- * Result of extracting the user-typed portion of one or more text parts.
- * Kept as a structured value (vs. a bare string) so downstream callers can
- * carry provenance information (source, stripped markers) into logs, memory
- * records, and tests without re-running the extractor.
- */
-export interface ExtractedUserPrompt {
-  /** The extracted user text, or "" if nothing remained after sanitization. */
-  text: string;
-  /** How the text was obtained — useful for logging and tests. */
-  source: SourceKind;
-  /** Names of markers that were detected/removed; informational only. */
-  strippedMarkers: string[];
-}
-
-/**
- * The contract between OpenCode's mutable `parts` bus and supermemory-p's
- * domain logic. Every hook that needs to know "what did the user actually
- * say" should consume a `PromptBoundary` rather than parsing parts directly.
- *
- * - `rawText` preserves the concatenated text of all eligible (non-synthetic,
- *   non-ignored) parts before any extraction. Useful for debugging when
- *   extraction is unexpectedly empty.
- * - `userText` is the post-extraction value, alias of `text` for clarity at
- *   call sites.
- * - `sessionID` / `role` are optional metadata the caller can attach so logs
- *   and memory provenance carry through without re-deriving them.
- */
-export interface PromptBoundary extends ExtractedUserPrompt {
-  /** Concatenated text of eligible parts before extraction. */
+export interface PromptBoundary {
+  /** Concatenated text of eligible (non-synthetic, non-ignored) parts. */
   rawText: string;
-  /** Alias of `text`. */
+  /**
+   * Best-effort user-typed content extracted from `rawText`. For
+   * slash-command expansions wrapped in `<user-request>` / `<user-task>`,
+   * this is the inner body; otherwise it is `rawText` trimmed.
+   *
+   * Always safe to use as a search query — does NOT imply the message is
+   * clean enough to capture. Check `isPolluted` for that.
+   */
   userText: string;
+  /** Alias of `userText`. */
+  text: string;
+  /**
+   * True when the raw message contains plugin/orchestrator scaffolding
+   * (OMO injections, Sisyphus orchestrator scaffolds, supermemory's own
+   * injections, slash-command wrappers, system directives, etc.).
+   *
+   * Capture-path callers MUST skip polluted messages entirely. Query-path
+   * callers can still use `userText` — it represents what the user
+   * meaningfully typed, even when wrapped.
+   */
+  isPolluted: boolean;
   /** OpenCode session this boundary belongs to, if known. */
   sessionID?: string;
   /** Role of the message this boundary was extracted from, if known. */
@@ -139,199 +69,102 @@ export interface PromptBoundaryContext {
   role?: MessageRole;
 }
 
-interface Segment {
-  type: "code" | "prose";
-  content: string;
+/**
+ * Markers that flag a message as containing plugin/orchestrator scaffolding.
+ * Matching ANY pattern flips `isPolluted` to true.
+ *
+ * Keep this list in sync with `scripts/purge-injected.ts` (the standalone
+ * cleanup script uses its own copy so it can run without depending on the
+ * full module graph).
+ */
+export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
+  // Plugin block wrappers (OMO and similar). Match the opening tag only — a
+  // bare `<system-reminder` is enough to flag the message; we don't need to
+  // care whether the closer is balanced because we will drop the whole
+  // message anyway.
+  /<(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|user-request|user-task)\b/i,
+  // Sisyphus orchestrator scaffold wrapper.
+  /<Work_Context\b/,
+  // System directive line headers.
+  /\[SYSTEM DIRECTIVE:/i,
+  /\[restore checkpointed session/i,
+  /<!--\s*OMO_INTERNAL_INITIATOR\s*-->/i,
+  // Sisyphus task briefs (`## F1:` through `## F9:`).
+  /^[\t ]*## F\d+:/m,
+  // Sisyphus plan-management headers and announcements.
+  /^[\t ]*## Auto-Selected Plan[\t ]*$/m,
+  /^[\t ]*## Plan Not Found\b/m,
+  /^[\t ]*boulder\.json has been created\./m,
+  // Sisyphus mode indicators on their own line.
+  /^[\t ]*\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\t ]*$/m,
+  // Standalone scaffolding signature strings.
+  /You are starting a Sisyphus work session\./,
+  /MANDATORY delegate_task params:/,
+];
+
+const USER_WRAPPER_PATTERN = /<(user-request|user-task)>([\s\S]*?)<\/\1>/gi;
+
+/**
+ * True iff `text` contains any pollution marker.
+ *
+ * Cheap (compiled regex tests, no allocations). Safe on empty / undefined.
+ */
+export function isPolluted(text: string | undefined | null): boolean {
+  if (!text) return false;
+  return POLLUTION_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-function splitFencedCode(text: string): Segment[] {
-  const segments: Segment[] = [];
-  let cursor = 0;
-  for (const match of text.matchAll(CODE_FENCE_PATTERN)) {
-    const idx = match.index ?? 0;
-    if (idx > cursor) {
-      segments.push({ type: "prose", content: text.slice(cursor, idx) });
-    }
-    segments.push({ type: "code", content: match[0] });
-    cursor = idx + match[0].length;
-  }
-  if (cursor < text.length) {
-    segments.push({ type: "prose", content: text.slice(cursor) });
-  }
-  return segments;
-}
-
-function extractWrappedUserContent(prose: string): string[] {
-  const contents: string[] = [];
-  for (const match of prose.matchAll(USER_WRAPPER_PATTERN)) {
+/**
+ * Pull the user's actual typed content out of a raw message body. If the
+ * body is wrapped in `<user-request>` / `<user-task>` (OMO slash-command
+ * expansion), we extract the inner body. Otherwise we return the trimmed
+ * raw text — the caller can decide whether to use it based on
+ * `isPolluted`.
+ */
+function extractUserContent(rawText: string): string {
+  if (!rawText) return "";
+  const wrapped: string[] = [];
+  for (const match of rawText.matchAll(USER_WRAPPER_PATTERN)) {
     const body = match[2];
     if (typeof body === "string") {
-      contents.push(body.trim());
+      const trimmed = body.trim();
+      if (trimmed.length > 0) wrapped.push(trimmed);
     }
   }
-  return contents;
-}
-
-function stripBlockTagsFromProse(prose: string): string {
-  let result = prose;
-  for (const tag of BLOCK_TAGS_TO_STRIP) {
-    result = result.replace(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, "gi"), "");
-  }
-  for (const pattern of LINE_PREFIXES_TO_STRIP) {
-    result = result.replace(pattern, "");
-  }
-  return result;
-}
-
-function collectStrippedMarkers(raw: string): string[] {
-  const markers: string[] = [];
-  if (/<auto-slash-command>/i.test(raw)) markers.push("auto-slash-command");
-  if (/<command-instruction>/i.test(raw)) markers.push("command-instruction");
-  if (/<session-context>/i.test(raw)) markers.push("session-context");
-  if (/<system-reminder>/i.test(raw)) markers.push("system-reminder");
-  if (/<supermemory-context>/i.test(raw)) markers.push("supermemory-context");
-  if (/\[SYSTEM DIRECTIVE:/i.test(raw)) markers.push("system-directive");
-  if (/\[restore checkpointed session/i.test(raw)) markers.push("checkpoint-restore");
-  if (/<!--\s*OMO_INTERNAL_INITIATOR\s*-->/i.test(raw)) markers.push("omo-internal-initiator");
-  return markers;
-}
-
-function collapseBlankLines(text: string): string {
-  return text.replace(/\n{3,}/g, "\n\n");
+  if (wrapped.length > 0) return wrapped.join("\n").trim();
+  return rawText.trim();
 }
 
 /**
- * Extract the user-typed portion of a raw chat text. See module header for
- * the full strategy. Safe for empty/whitespace input.
- */
-export function extractUserPrompt(rawText: string): ExtractedUserPrompt {
-  if (!rawText || rawText.trim().length === 0) {
-    return { text: "", source: "empty", strippedMarkers: [] };
-  }
-
-  const segments = splitFencedCode(rawText);
-  const proseSegments = segments.filter((s) => s.type === "prose");
-
-  // Step 1: explicit user wrappers win when both present and non-empty.
-  const wrapped = proseSegments.flatMap((s) => extractWrappedUserContent(s.content));
-  const wrappedNonEmpty = wrapped.filter((c) => c.length > 0);
-
-  if (wrappedNonEmpty.length > 0) {
-    return {
-      text: wrappedNonEmpty.join("\n").trim(),
-      source: "wrapped-user-content",
-      strippedMarkers: ["user-wrapper"],
-    };
-  }
-
-  if (wrapped.length > 0) {
-    // Wrapper present but empty — caller said "no user content"; respect it.
-    return { text: "", source: "empty", strippedMarkers: ["user-wrapper-empty"] };
-  }
-
-  // Step 2: denylist-strip prose; code fences pass through untouched.
-  const sanitizedSegments = segments.map((segment) =>
-    segment.type === "code" ? segment.content : stripBlockTagsFromProse(segment.content),
-  );
-  const sanitized = collapseBlankLines(sanitizedSegments.join("")).trim();
-
-  if (sanitized.length === 0) {
-    return { text: "", source: "empty", strippedMarkers: collectStrippedMarkers(rawText) };
-  }
-
-  const changed = sanitized !== rawText.trim();
-  return {
-    text: sanitized,
-    source: changed ? "sanitized-text" : "raw-text",
-    strippedMarkers: changed ? collectStrippedMarkers(rawText) : [],
-  };
-}
-
-/**
- * Convenience wrapper: filter out synthetic/ignored/non-text parts, join the
- * eligible texts, then run `extractUserPrompt` over the combined string.
- *
- * Pass `parts === undefined` and you get an empty result back — safe for
- * cases where the hook payload may omit the parts list.
- */
-export function extractUserPromptFromParts(parts: readonly TextPartLike[] | undefined): ExtractedUserPrompt {
-  if (!parts || parts.length === 0) {
-    return { text: "", source: "empty", strippedMarkers: [] };
-  }
-
-  const eligible = parts.filter(
-    (p): p is TextPartLike & { text: string } => p.type === "text" && typeof p.text === "string" && !p.synthetic && !p.ignored,
-  );
-
-  if (eligible.length === 0) {
-    return { text: "", source: "empty", strippedMarkers: [] };
-  }
-
-  const joined = eligible.map((p) => p.text).join("\n");
-  return extractUserPrompt(joined);
-}
-
-/**
- * Build a `PromptBoundary` from raw parts + optional metadata. This is the
- * preferred entry point for hooks — the returned object carries the raw
- * text, the extracted user text, provenance information, and any caller
- * context (sessionID, role) all in one immutable bundle.
- *
- * For places that only need `string`, the lower-level `extractUserPrompt*`
- * functions remain available.
+ * Build a `PromptBoundary` from raw parts + optional caller context. Always
+ * the preferred entry point for hooks. Returns a frozen object so callers
+ * can pass it around without worrying about mutation.
  */
 export function createPromptBoundary(parts: readonly TextPartLike[] | undefined, context: PromptBoundaryContext = {}): PromptBoundary {
   const eligible = (parts ?? []).filter(
     (p): p is TextPartLike & { text: string } => p.type === "text" && typeof p.text === "string" && !p.synthetic && !p.ignored,
   );
   const rawText = eligible.map((p) => p.text).join("\n");
-  const extracted = extractUserPrompt(rawText);
-
+  const userText = extractUserContent(rawText);
   return Object.freeze({
     rawText,
-    text: extracted.text,
-    userText: extracted.text,
-    source: extracted.source,
-    strippedMarkers: extracted.strippedMarkers,
+    text: userText,
+    userText,
+    isPolluted: isPolluted(rawText),
     sessionID: context.sessionID,
     role: context.role,
   });
 }
 
 /**
- * Sanitize memory context BEFORE injecting it back into a user message's
- * parts. More aggressive than `extractUserPrompt` because:
- *   - We control the input (formatted memory, not user text), so there is no
- *     code fence to preserve.
- *   - Any leftover OMO trigger phrase or wrapper here will be processed by
- *     downstream plugins as if the user typed it.
+ * Sanitize a memory-context string before injecting it back into a chat
+ * message. Polluted text never makes it through — better to inject nothing
+ * than to leak markers that re-trigger downstream plugins (this was the
+ * root cause of the original Atlas-bug regression).
  *
- * Strips block tags, orphan tag fragments, line-prefix directives, and
- * standalone trigger phrases (the start-work-hook canary string).
+ * Clean text passes through unchanged.
  */
 export function sanitizeMemoryContextForInjection(memoryContext: string): string {
   if (!memoryContext) return "";
-
-  let cleaned = memoryContext;
-
-  // Strip complete block tags (including user-wrappers — memory should never
-  // carry an active <user-request> tag).
-  for (const tag of [...BLOCK_TAGS_TO_STRIP, "user-request", "user-task"]) {
-    cleaned = cleaned.replace(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, "gi"), "");
-  }
-
-  // Strip orphan opener/closer fragments left behind by chunked memories.
-  cleaned = cleaned.replace(ORPHAN_TAG_PATTERN, "");
-
-  // Strip line-prefix directives.
-  for (const pattern of LINE_PREFIXES_TO_STRIP) {
-    cleaned = cleaned.replace(pattern, "");
-  }
-
-  // Neutralize standalone trigger phrases.
-  for (const pattern of STANDALONE_TRIGGER_PHRASES) {
-    cleaned = cleaned.replace(pattern, "");
-  }
-
-  return collapseBlankLines(cleaned).trim();
+  return isPolluted(memoryContext) ? "" : memoryContext;
 }

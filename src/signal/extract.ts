@@ -1,4 +1,4 @@
-import { createPromptBoundary, type SourceKind } from "@/shared/user-prompt";
+import { createPromptBoundary } from "@/shared/user-prompt";
 
 const MAX_SIGNAL_TURN_CHARS = 50 * 1024;
 const COMMAND_PATTERN = /^[/\\][a-z-]+/i;
@@ -24,8 +24,12 @@ export interface Turn {
   messageId: string;
   /** Session this turn belongs to, propagated through `PromptBoundary`. */
   sessionID?: string;
-  /** How the turn's text was extracted from the original parts. */
-  source?: SourceKind;
+  /**
+   * True when the underlying message contained plugin/orchestrator
+   * scaffolding. Polluted turns get an empty `text` so downstream filters
+   * that look at `text.length > 0` will skip them automatically.
+   */
+  polluted?: boolean;
 }
 
 export interface SignalExtractionConfig {
@@ -38,10 +42,10 @@ export function groupIntoTurns(messages: Message[]): Turn[] {
     const boundary = createPromptBoundary(message.parts, { sessionID: message.sessionID, role: message.role });
     return {
       role: message.role,
-      text: boundary.userText,
+      text: boundary.isPolluted ? "" : boundary.userText,
       messageId: message.id,
       sessionID: boundary.sessionID,
-      source: boundary.source,
+      polluted: boundary.isPolluted,
     };
   });
 }

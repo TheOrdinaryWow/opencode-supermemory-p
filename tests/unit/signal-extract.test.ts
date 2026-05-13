@@ -19,13 +19,13 @@ describe("signal extraction", () => {
     ]);
 
     expect(turns).toEqual([
-      { role: "user", text: "First request", messageId: "u1", sessionID: undefined, source: "raw-text" },
-      { role: "assistant", text: "First reply", messageId: "a1", sessionID: undefined, source: "raw-text" },
-      { role: "user", text: "Second request", messageId: "u2", sessionID: undefined, source: "raw-text" },
+      { role: "user", text: "First request", messageId: "u1", sessionID: undefined, polluted: false },
+      { role: "assistant", text: "First reply", messageId: "a1", sessionID: undefined, polluted: false },
+      { role: "user", text: "Second request", messageId: "u2", sessionID: undefined, polluted: false },
     ]);
   });
 
-  it("propagates sessionID and source through Turn metadata", () => {
+  it("propagates sessionID and marks polluted slash-command messages", () => {
     const message: Message = {
       id: "u_omo",
       role: "user",
@@ -35,9 +35,12 @@ describe("signal extraction", () => {
 
     const [turn] = groupIntoTurns([message]);
 
-    expect(turn?.text).toBe("real ask");
+    // Polluted message — capture-path consumers will skip it. Text is
+    // emptied so downstream filters that key off `text.length > 0` exclude
+    // it from signal extraction.
+    expect(turn?.text).toBe("");
+    expect(turn?.polluted).toBe(true);
     expect(turn?.sessionID).toBe("ses_flow");
-    expect(turn?.source).toBe("wrapped-user-content");
   });
 
   it("returns matching user turn indices", () => {
@@ -136,5 +139,33 @@ describe("signal extraction", () => {
 
   it("returns null for an empty message list", () => {
     expect(extractSignalContent([], { signalKeywords: ["remember"], signalTurnsBefore: 2 })).toBeNull();
+  });
+});
+
+describe("signal extraction polluted handling", () => {
+  it("marks turns from polluted messages with empty text + polluted flag", () => {
+    const messages: Message[] = [
+      { id: "m_polluted", role: "user", parts: [{ type: "text", text: "<Work_Context>policy</Work_Context>" }] },
+      { id: "m_clean", role: "user", parts: [{ type: "text", text: "hello" }] },
+    ];
+
+    const turns = groupIntoTurns(messages);
+    expect(turns[0]?.polluted).toBe(true);
+    expect(turns[0]?.text).toBe("");
+    expect(turns[1]?.polluted).toBe(false);
+    expect(turns[1]?.text).toBe("hello");
+  });
+
+  it("extractSignalContent omits polluted turns from the joined output", () => {
+    const messages: Message[] = [
+      { id: "u_pol", role: "user", parts: [{ type: "text", text: "<system-reminder>x</system-reminder>" }] },
+      { id: "u_sig", role: "user", parts: [{ type: "text", text: "please remember this fact" }] },
+      { id: "a_rep", role: "assistant", parts: [{ type: "text", text: "OK noted" }] },
+    ];
+
+    const content = extractSignalContent(messages, { signalKeywords: ["remember"], signalTurnsBefore: 5 });
+    expect(content).not.toBeNull();
+    expect(content).not.toContain("system-reminder");
+    expect(content).toContain("please remember this fact");
   });
 });
