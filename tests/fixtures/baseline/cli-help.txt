@@ -4,7 +4,7 @@ opencode-supermemory-p - The powered Supermemory plugin for OpenCode
 Commands:
   install    Install and configure the plugin
     --no-tui                     Non-interactive mode (for LLM agents)
-    --disable-context-recovery   Disable Oh My OpenCode's context hook
+    --disable-context-recovery   Disable Oh My OpenAgent's context hook
   login      Authenticate with Supermemory (opens browser)
   logout     Clear stored credentials
 

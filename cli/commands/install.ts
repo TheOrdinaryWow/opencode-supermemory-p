@@ -2,7 +2,7 @@ import type { Interface } from "node:readline";
 
 import { createCommandFiles } from "@cli/command-files";
 import { runLoginFlow } from "@cli/commands/login";
-import { disableAutoCompactHook, isAutoCompactAlreadyDisabled, isOhMyOpencodeInstalled } from "@cli/oh-my-opencode";
+import { disableAutoCompactHook, isAutoCompactAlreadyDisabled, isOhMyOpenAgentInstalled } from "@cli/oh-my-openagent";
 import { addPluginToConfig, createNewConfig, findOpencodeConfig } from "@cli/opencode-config";
 import { confirm, createReadline } from "@cli/prompts";
 import { defineCommand } from "citty";
@@ -25,9 +25,9 @@ async function runInstall(tui: boolean, disableAutoCompact: boolean): Promise<nu
   console.log("\nStep 2: Create /supermemory-init, /supermemory-login, and /supermemory-logout commands");
   await maybe(rl, "Add supermemory commands?", createCommandFiles);
 
-  if (isOhMyOpencodeInstalled()) {
-    console.log("\nStep 3: Configure Oh My OpenCode");
-    console.log("Detected Oh My OpenCode plugin.");
+  if (isOhMyOpenAgentInstalled()) {
+    console.log("\nStep 3: Configure Oh My OpenAgent");
+    console.log("Detected Oh My OpenAgent plugin.");
     console.log("Supermemory handles context compaction, so the built-in context-window-limit-recovery hook should be disabled.");
     if (isAutoCompactAlreadyDisabled()) console.log("✓ anthropic-context-window-limit-recovery hook already disabled");
     else if (rl)
@@ -51,7 +51,7 @@ async function runInstall(tui: boolean, disableAutoCompact: boolean): Promise<nu
 
 const installArgs = {
   "no-tui": { type: "boolean" as const, description: "Non-interactive mode (for LLM agents)" },
-  "disable-context-recovery": { type: "boolean" as const, description: "Disable Oh My OpenCode's context hook" },
+  "disable-context-recovery": { type: "boolean" as const, description: "Disable Oh My OpenAgent's context hook" },
 };
 
 export default defineCommand({

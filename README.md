@@ -269,11 +269,11 @@ This is useful when you want to:
 - Organize memories using your own naming scheme
 - Integrate with existing Supermemory container tags from other tools
 
-## Usage with Oh My OpenCode
+## Usage with Oh My OpenAgent
 
-If you're using [Oh My OpenCode](https://github.com/code-yeongyu/oh-my-opencode), disable its built-in auto-compact hook to let supermemory handle context compaction:
+If you're using [Oh My OpenAgent](https://github.com/code-yeongyu/oh-my-openagent), disable its built-in auto-compact hook to let supermemory handle context compaction:
 
-Add to `~/.config/opencode/oh-my-opencode.json`:
+Add to `~/.config/opencode/oh-my-openagent.json`:
 
 ```json
 {
