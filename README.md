@@ -4,6 +4,22 @@
 
 Your agent remembers what you tell it — across sessions, across projects.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Features](#features)
+- [Tool Usage](#tool-usage)
+- [Memory Scoping](#memory-scoping)
+- [Configuration](#configuration)
+- [Container Tag Selection](#container-tag-selection)
+- [Project Tag Strategy](#project-tag-strategy)
+- [Usage with Oh My OpenAgent](#usage-with-oh-my-openagent)
+- [Development](#development)
+- [Logs](#logs)
+- [Maintenance](#maintenance)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+
 ## Installation
 
 ### For Humans
@@ -177,6 +193,66 @@ API key is <private>sk-abc123</private>
 
 Content in `<private>` tags is never stored.
 
+### Incremental Capture
+
+Assistant turns can be saved as they finish, which keeps long sessions from losing useful context. The capture limit is controlled by `maxCaptureChars`, so very large turns stay bounded.
+
+### Every-Message Recall
+
+This option runs memory search on every user message and re-injects the best matches when they matter. It is off by default because it adds retrieval cost on every turn.
+
+### Signal Extraction
+
+The plugin can watch for signal keywords and keep only the turns that look worth preserving. It stays heuristic-only, so no extra LLM call is needed for capture decisions.
+
+### Content Dedup
+
+Duplicate memories are skipped by content hash so the same fact does not get stored over and over. The cache is bounded and only stores hashes, which keeps the disk footprint small.
+
+### Metadata Stripping
+
+Injected timestamps, tags, and other wrapper metadata are removed before search. Private tags remain untouched, so the plugin still respects explicit private boundaries.
+
+### Relative Time Display
+
+Memory timestamps can render as relative text such as `2 hrs ago` instead of raw ISO strings. That keeps the injected context easier to scan during active sessions.
+
+### Entity Context
+
+Entity guidance gives memory extraction a short, focused hint about the current subject. It helps the plugin keep person, project, and product references consistent without adding extra API calls.
+
+### Auto-Category Tagging
+
+Memories can be classified into categories such as preference, decision, fact, or other. The feature is off by default so categorization only happens when you opt in.
+
+### Memo Usage Footer
+
+A compact footer can show how many memories were injected into the current context. That makes it easier to see when memory usage is high without opening logs.
+
+### Profile Cross-Array Dedup
+
+Profile facts can be deduped across the profile, project, and relevant-memory arrays before injection. That keeps repeated facts from crowding out fresher context.
+
+### Recall Keywords
+
+Extra recall phrases can trigger a search even when the message does not look like a normal memory request. This is useful for project-specific prompts that should always pull context back in.
+
+### Periodic Re-Injection
+
+The plugin can re-inject memory every N completed turns to keep long chats anchored. Set the interval to `0` to disable the cadence entirely.
+
+### Session-End Save
+
+When a session idles or ends, the plugin can write a final memory snapshot. That gives the conversation one last save point even if earlier capture was missed.
+
+### Pre-Compaction Save
+
+Before OpenCode compacts the conversation, the plugin can preserve the current state in full. This keeps the memory timeline intact before summarization trims the active context.
+
+### Post-Compaction Re-Injection
+
+After compaction, the plugin can queue the session for a fresh memory pull on the next chat turn. That restores useful context after the summary pass finishes.
+
 ## Tool Usage
 
 The `supermemory` tool is available to the agent:
@@ -203,6 +279,10 @@ The `supermemory` tool is available to the agent:
 The project tag formula is configurable via [`projectTagStrategy`](#project-tag-strategy).
 
 ## Configuration
+
+### Migration Notes (v2)
+
+All new features default to safe behavior (zero additional API cost). Three options require explicit opt-in: `everyMessageRecall`, `reinjectEveryN`, and `autoCategoryTagging`.
 
 Create `~/.config/opencode/supermemory-p.jsonc`:
 
@@ -246,6 +326,60 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
 
   // Context usage ratio that triggers compaction (0-1)
   "compactionThreshold": 0.8,
+
+  // Save assistant turns progressively as they finish
+  "incrementalCapture": true,
+
+  // Maximum characters kept from any captured turn
+  "maxCaptureChars": 5000,
+
+  // Run recall search on every message (costly; default off)
+  "everyMessageRecall": false,
+
+  // Re-inject memory every N completed turns (0 disables it)
+  "reinjectEveryN": 0,
+
+  // Re-inject memory after context compaction
+  "postCompactionReinject": true,
+
+  // Save a final snapshot when the session ends or idles
+  "sessionEndSave": true,
+
+  // Keep only turns that match signal keywords
+  "signalExtraction": true,
+
+  // Keywords that trigger capture for high-signal turns
+  "signalKeywords": ["remember", "save this", "important"],
+
+  // Include this many earlier turns before a signal turn
+  "signalTurnsBefore": 3,
+
+  // Extra recall phrases that trigger a memory search
+  "recallKeywordPatterns": ["bring that back", "look that up"],
+
+  // Skip duplicate memory saves by normalized content hash
+  "dedupEnabled": true,
+
+  // Maximum number of entries kept in the dedup cache
+  "dedupCacheSize": 500,
+
+  // Short guidance for entity extraction during capture
+  "entityContext": "Focus on people, projects, tools, and decisions that matter to this repository.",
+
+  // Strip injected metadata from memory search queries
+  "metadataStripping": true,
+
+  // Show relative timestamps like '2 hrs ago' in memory context
+  "relativeTimeDisplay": true,
+
+  // Append a compact memory-count footer to injected context
+  "memoUsageFooter": true,
+
+  // Classify memories into categories before storing them
+  "autoCategoryTagging": false,
+
+  // Deduplicate profile facts across profile, project, and relevant memories
+  "profileCrossArrayDedup": true,
 }
 ```
 
@@ -321,6 +455,8 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 }
 ```
 
+Messages containing plugin or orchestrator scaffolding (slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, etc.) are skipped entirely from the capture stream. Memories ingested with this plugin enabled will not contain other plugins' markers, so no manual cleanup is needed for new sessions. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
+
 ## Development
 
 ```bash
@@ -344,6 +480,37 @@ Local install:
 ```bash
 tail -f ~/.local/share/opencode-supermemory-p/log/main.log
 ```
+
+## Maintenance
+
+### Purge legacy plugin-injected memories
+
+Memories captured by earlier versions of this plugin may contain content injected by other plugins (slash-command expansions, system reminders, etc.). The `purge-injected` script scans the Supermemory backend and removes them.
+
+Dry-run (default — lists matches without deleting):
+
+```bash
+bun run scripts/purge-injected.ts
+```
+
+Confirm deletion:
+
+```bash
+bun run scripts/purge-injected.ts --confirm
+```
+
+The script reads `SUPERMEMORY_API_KEY` from the environment or `~/.config/opencode/supermemory-p.jsonc`. Override with `--api-key sm_...` or `--base-url https://...` if needed.
+
+## Acknowledgements
+
+This plugin builds on the work of the Supermemory team and the wider community of plugin authors. In particular:
+
+- [opencode-supermemory](https://github.com/supermemoryai/opencode-supermemory) — the upstream OpenCode plugin this fork is based on.
+- [claude-supermemory](https://github.com/supermemoryai/claude-supermemory) — source of the entity-context, dedup, and signal-extraction patterns.
+- [openclaw-supermemory](https://github.com/supermemoryai/openclaw-supermemory) — source of the incremental-capture, metadata-stripping, and compaction-hook designs.
+- [opencode-supermemory-max](https://github.com/kandotrun/opencode-supermemory-max) — community fork that informed several of the feature consolidations here.
+
+Thanks to everyone who shipped these projects.
 
 ## License
 

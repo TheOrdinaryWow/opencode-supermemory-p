@@ -18,10 +18,10 @@ import { fileURLToPath } from "node:url";
 //
 // These tests pin the JSON shapes returned for every branch + the
 // pre-call validation / privacy / scope-defaulting behaviour. They are
-// the "behavior contract" that the planned tool-mode refactor (T13)
+// the "behavior contract" that any future tool-mode refactor
 // must preserve.
 //
-// Mocking strategy (informed by T6 notepad — "own-property shadow over
+// Mocking strategy (own-property shadow over prototype):
 // prototype"):
 //
 //   - Mock the `supermemory` SDK module so the real SupermemoryClient
@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url";
 //     own-properties intercept calls before the prototype method runs.
 //
 // This avoids `mock.module("src/services/client.ts", ...)`, which
-// leaks across files in parallel test mode (per T6 learnings).
+// leaks across files in parallel test mode.
 // =====================================================================
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -308,7 +308,7 @@ describe("tool.execute mode=add", () => {
     // Note: content is passed through stripPrivateContent → unchanged here, plain text.
     expect(clientCalls.addMemory[0]?.args[0]).toBe("hello world");
     expect(clientCalls.addMemory[0]?.args[1]).toBe(MOCK_PROJECT_TAG);
-    expect(clientCalls.addMemory[0]?.args[2]).toEqual({ type: "preference" });
+    expect(clientCalls.addMemory[0]?.args[2]).toEqual({ type: "preference", source: "user" });
   });
 
   it("scope=user routes to the user tag, scope=project routes to the project tag", async () => {
@@ -497,7 +497,7 @@ describe("tool.execute mode=profile", () => {
   });
 
   it("profile missing on success: empty arrays are substituted for missing static/dynamic slots", async () => {
-    // T13 may unify this — pin the current "lenient defaulting" behaviour.
+    // Pin the current "lenient defaulting" behaviour.
     clientImpl.getProfile = () => ({ success: true });
 
     const out = (await callTool({ mode: "profile" })) as { profile: { static: unknown[]; dynamic: unknown[] } };

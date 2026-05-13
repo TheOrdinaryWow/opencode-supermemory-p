@@ -1,12 +1,9 @@
 import { getLogger } from "@logtape/logtape";
 
-import { findNearestMessageWithFields } from "@/compaction/finder";
-import { getMessageDir, injectHookMessage } from "@/compaction/message-store";
-import { createCompactionPrompt } from "@/compaction/prompt";
 import { type CompactionState, createCompactionState } from "@/compaction/state";
 import { computeShouldCompact, DEFAULT_CONTEXT_LIMIT, DEFAULT_THRESHOLD, type TokenInfo } from "@/compaction/threshold";
-import { getConfig } from "@/config/loader";
 import { supermemoryClient } from "@/memory/client";
+import { isPolluted } from "@/shared/user-prompt";
 
 const logger = getLogger(["supermemory", "compaction"]);
 
@@ -19,15 +16,6 @@ export interface MessageInfo {
   tokens?: TokenInfo;
   summary?: boolean;
   finish?: boolean;
-}
-
-export interface SummarizeContext {
-  sessionID: string;
-  providerID: string;
-  modelID: string;
-  usageRatio: number;
-  directory: string;
-  agent?: string;
 }
 
 export interface CompactionOptions {
@@ -115,7 +103,6 @@ export async function handleSessionIdle(deps: HookDeps, props?: Record<string, u
     const assistants = messages.filter((m) => m.info.role === "assistant").map((m) => m.info);
     const lastAssistant = assistants.at(-1);
     if (!lastAssistant) return;
-    fillMissingModelFromStorage(sessionID, lastAssistant);
     await performCompaction(deps, sessionID, lastAssistant);
   } catch (err) {
     logger.warn("[compaction] failed to process idle session", { sessionID, error: String(err) });
@@ -139,9 +126,8 @@ export function shouldCompact(deps: HookDeps, sessionID: string, lastAssistant: 
 }
 
 export async function performCompaction(deps: HookDeps, sessionID: string, lastAssistant: MessageInfo): Promise<void> {
-  const storedMessage = resolveStoredMessage(sessionID);
-  const providerID = lastAssistant.providerID || storedMessage?.model?.providerID || "";
-  const modelID = lastAssistant.modelID || storedMessage?.model?.modelID || "";
+  const providerID = lastAssistant.providerID || "";
+  const modelID = lastAssistant.modelID || "";
   const decision = shouldCompact(deps, sessionID, { ...lastAssistant, providerID, modelID });
   if (!decision?.shouldCompact) return;
   logger.info("[compaction] checking", {
@@ -159,14 +145,6 @@ export async function performCompaction(deps: HookDeps, sessionID: string, lastA
   await warnToast(deps, decision.usageRatio);
   logger.info("[compaction] triggering compaction", { sessionID, usageRatio: decision.usageRatio });
   try {
-    await injectMemoryContext(deps, {
-      sessionID,
-      providerID,
-      modelID,
-      usageRatio: decision.usageRatio,
-      directory: deps.ctx.directory,
-      agent: storedMessage?.agent,
-    });
     deps.state.summarizedSessions.add(sessionID);
     await deps.ctx.client.session.summarize({
       path: { id: sessionID },
@@ -175,44 +153,22 @@ export async function performCompaction(deps: HookDeps, sessionID: string, lastA
     });
     await successToast(deps);
     deps.state.compactionInProgress.delete(sessionID);
-    scheduleContinuePrompt(deps, sessionID);
   } catch (err) {
     logger.warn("[compaction] compaction failed", { sessionID, error: String(err) });
     deps.state.compactionInProgress.delete(sessionID);
   }
 }
-
-export async function injectMemoryContext(deps: HookDeps, summarizeCtx: SummarizeContext): Promise<void> {
-  logger.info("[compaction] injecting context", { sessionID: summarizeCtx.sessionID });
-  const projectMemories = await fetchProjectMemoriesForCompaction(deps.tags.project);
-  const prompt = createCompactionPrompt(projectMemories);
-  const success = injectHookMessage(summarizeCtx.sessionID, prompt, {
-    agent: summarizeCtx.agent,
-    model: { providerID: summarizeCtx.providerID, modelID: summarizeCtx.modelID },
-    path: { cwd: summarizeCtx.directory },
-  });
-  if (success)
-    logger.info("[compaction] context injected with project memories", {
-      sessionID: summarizeCtx.sessionID,
-      memoriesCount: projectMemories.length,
-    });
-}
-
-async function fetchProjectMemoriesForCompaction(projectTag: string): Promise<string[]> {
-  try {
-    const result = await supermemoryClient.listMemories(projectTag, getConfig().maxProjectMemories);
-    return (result.memories || []).map((m) => m.summary || m.content || "").filter(Boolean);
-  } catch (err) {
-    logger.warn("[compaction] failed to fetch project memories", { error: String(err) });
-    return [];
-  }
-}
-
 async function saveSummaryAsMemory(deps: HookDeps, sessionID: string, summaryContent: string): Promise<void> {
   if (!summaryContent || summaryContent.length < 100)
     return logger.info("[compaction] summary too short to save", { sessionID, length: summaryContent.length });
+  if (isPolluted(summaryContent)) {
+    return logger.info("[compaction] summary contains plugin scaffolding, skipping save", { sessionID });
+  }
   try {
-    const result = await supermemoryClient.addMemory(`[Session Summary]\n${summaryContent}`, deps.tags.project, { type: "conversation" });
+    const result = await supermemoryClient.addMemory(`[Session Summary]\n${summaryContent}`, deps.tags.project, {
+      type: "conversation",
+      source: "summary",
+    });
     if (result.success) logger.info("[compaction] summary saved as memory", { sessionID, memoryId: result.id });
     else logger.warn("[compaction] failed to save summary", { error: result.error });
   } catch (err) {
@@ -234,18 +190,6 @@ async function handleSummaryMessage(deps: HookDeps, sessionID: string): Promise<
   } catch (err) {
     logger.warn("[compaction] failed to capture summary", { error: String(err) });
   }
-}
-
-function resolveStoredMessage(sessionID: string) {
-  const messageDir = getMessageDir(sessionID);
-  return messageDir ? findNearestMessageWithFields(messageDir) : null;
-}
-
-function fillMissingModelFromStorage(sessionID: string, message: MessageInfo): void {
-  if (message.providerID && message.modelID) return;
-  const storedMessage = resolveStoredMessage(sessionID);
-  if (storedMessage?.model?.providerID) message.providerID = storedMessage.model.providerID;
-  if (storedMessage?.model?.modelID) message.modelID = storedMessage.model.modelID;
 }
 
 async function warnToast(deps: HookDeps, usageRatio: number): Promise<void> {
@@ -276,19 +220,4 @@ async function successToast(deps: HookDeps): Promise<void> {
   } catch (err) {
     logger.warn("[compaction] failed to show success toast", { error: String(err) });
   }
-}
-
-function scheduleContinuePrompt(deps: HookDeps, sessionID: string): void {
-  setTimeout(async () => {
-    try {
-      const storedMessage = resolveStoredMessage(sessionID);
-      await deps.ctx.client.session.promptAsync({
-        path: { id: sessionID },
-        body: { agent: storedMessage?.agent, parts: [{ type: "text", text: "Continue" }] },
-        query: { directory: deps.ctx.directory },
-      });
-    } catch (err) {
-      logger.warn("[compaction] failed to continue after compaction", { sessionID, error: String(err) });
-    }
-  }, 500);
 }

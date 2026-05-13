@@ -20,7 +20,11 @@ import { detectMemoryKeyword } from "@/chat/keywords";
 import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
+import { detectRecallKeyword, runEveryMessageRecall } from "@/recall/every-message";
+import { shouldPeriodicReinject } from "@/recall/periodic";
 import type { SessionState } from "@/session/state";
+import { generatePartId } from "@/shared/ids";
+import { createPromptBoundary, sanitizeMemoryContextForInjection } from "@/shared/user-prompt";
 
 export interface ChatHandlerInput {
   sessionID: string;
@@ -52,18 +56,31 @@ type ListResult =
 
 export interface ChatClientLike {
   getProfile: (containerTag: string, query?: string) => Promise<ProfileResult>;
-  searchMemories: (query: string, containerTag: string) => Promise<SearchResult>;
+  searchMemories: (query: string, containerTag: string | string[]) => Promise<SearchResult>;
   listMemories: (containerTag: string, limit?: number) => Promise<ListResult>;
 }
 
 export interface ChatHandlerDeps {
   client: ChatClientLike;
-  config: Pick<SupermemoryConfig, "keywordPatterns" | "maxProjectMemories">;
+  config: Pick<
+    SupermemoryConfig,
+    | "keywordPatterns"
+    | "maxProjectMemories"
+    | "injectProfile"
+    | "maxProfileItems"
+    | "recallKeywordPatterns"
+    | "everyMessageRecall"
+    | "reinjectEveryN"
+  > &
+    Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">>;
   tags: { user: string; project: string };
   injectedSessions: Pick<SessionState, "markInjected" | "wasInjected">;
+  pendingReinjectSessions?: Pick<Set<string>, "delete" | "has">;
   log: (message: string, data?: unknown) => void;
   isConfigured: () => boolean;
 }
+
+const msgCounter = new Map<string, number>();
 
 /**
  * Runs once per assistant message. Responsibilities:
@@ -79,35 +96,31 @@ export interface ChatHandlerDeps {
  * OpenCode will surface the failure to the user.
  */
 export async function handleChatMessage(input: ChatHandlerInput, output: ChatHandlerOutput, deps: ChatHandlerDeps): Promise<void> {
-  if (!deps.isConfigured()) return;
+  const completedMessages = msgCounter.get(input.sessionID) ?? 0;
 
   const start = Date.now();
 
   try {
-    const textParts = output.parts.filter((p): p is Part & { type: "text"; text: string } => p.type === "text");
+    if (!deps.isConfigured()) return;
 
-    if (textParts.length === 0) {
-      deps.log("chat.message: no text parts found");
-      return;
-    }
+    const boundary = createPromptBoundary(output.parts, { sessionID: input.sessionID, role: "user" });
+    const userMessage = boundary.userText;
 
-    const userMessage = textParts.map((p) => p.text).join("\n");
-
-    if (!userMessage.trim()) {
-      deps.log("chat.message: empty message, skipping");
+    if (!userMessage) {
+      deps.log("chat.message: empty message, skipping", { isPolluted: boundary.isPolluted });
       return;
     }
 
     deps.log("chat.message: processing", {
       messagePreview: userMessage.slice(0, 100),
       partsCount: output.parts.length,
-      textPartsCount: textParts.length,
+      isPolluted: boundary.isPolluted,
     });
 
     if (detectMemoryKeyword(userMessage, deps.config)) {
       deps.log("chat.message: memory keyword detected");
       const nudgePart: Part = {
-        id: `prt_supermemory-nudge-${Date.now()}`,
+        id: generatePartId(),
         sessionID: input.sessionID,
         messageID: output.message.id,
         type: "text",
@@ -118,6 +131,10 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     }
 
     const isFirstMessage = !deps.injectedSessions.wasInjected(input.sessionID);
+    const hasRecallKeyword = detectRecallKeyword(userMessage, deps.config);
+    const hasPendingReinject = deps.pendingReinjectSessions?.has(input.sessionID) === true;
+    const shouldRecallAfterFirstMessage = deps.config.everyMessageRecall === true || hasRecallKeyword || hasPendingReinject;
+    let injectedThisTurn = false;
 
     if (isFirstMessage) {
       deps.injectedSessions.markInjected(input.sessionID);
@@ -147,12 +164,13 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
       const memoryContext = formatContextForPrompt(profile, userMemories, projectMemories);
 
       if (memoryContext) {
+        const safeMemoryContext = sanitizeMemoryContextForInjection(memoryContext);
         const contextPart: Part = {
-          id: `prt_supermemory-context-${Date.now()}`,
+          id: generatePartId(),
           sessionID: input.sessionID,
           messageID: output.message.id,
           type: "text",
-          text: memoryContext,
+          text: `<supermemory-context>\n${safeMemoryContext}\n</supermemory-context>`,
           synthetic: true,
         };
 
@@ -163,9 +181,24 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
           duration,
           contextLength: memoryContext.length,
         });
+        injectedThisTurn = true;
+      }
+    } else {
+      if (shouldRecallAfterFirstMessage) {
+        await runEveryMessageRecall(input, output, deps);
+        injectedThisTurn = true;
+        if (hasPendingReinject) {
+          deps.pendingReinjectSessions?.delete(input.sessionID);
+        }
+      }
+
+      if (!injectedThisTurn && shouldPeriodicReinject(input.sessionID, deps.config.reinjectEveryN, msgCounter)) {
+        await runEveryMessageRecall(input, output, deps);
       }
     }
   } catch (error) {
     deps.log("chat.message: ERROR", { error: String(error) });
+  } finally {
+    msgCounter.set(input.sessionID, completedMessages + 1);
   }
 }

@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/assets/config.schema.json",
   "title": "opencode-supermemory-p config",
-  "description": "opencode-supermemory-p's configuration schema.",
+  "description": "Configuration for opencode-supermemory-p.",
   "type": "object",
   "required": [],
   "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "opencode-supermemory-p's JSON Schema reference."
+      "description": "JSON Schema reference for editor validation."
     },
     "apiKey": {
       "type": "string",
@@ -75,6 +75,115 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
+    },
+    "incrementalCapture": {
+      "default": true,
+      "type": "boolean"
+    },
+    "maxCaptureChars": {
+      "default": 5000,
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "postCompactionReinject": {
+      "default": true,
+      "type": "boolean"
+    },
+    "sessionEndSave": {
+      "default": true,
+      "type": "boolean"
+    },
+    "signalExtraction": {
+      "default": true,
+      "type": "boolean"
+    },
+    "signalKeywords": {
+      "default": [
+        "remember",
+        "important",
+        "save this",
+        "note this",
+        "don't forget",
+        "key decision",
+        "project info",
+        "my name",
+        "I work",
+        "I prefer",
+        "I use",
+        "I like",
+        "always",
+        "never",
+        "my team",
+        "my email",
+        "my company"
+      ],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signalTurnsBefore": {
+      "default": 3,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "recallKeywordPatterns": {
+      "default": [
+        "what did we",
+        "remind me",
+        "earlier you said",
+        "what was the",
+        "do you remember"
+      ],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dedupEnabled": {
+      "default": true,
+      "type": "boolean"
+    },
+    "dedupCacheSize": {
+      "default": 500,
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "entityContext": {
+      "default": "User-assistant conversation. Format: [role: user]...[user:end] and [role: assistant]...[assistant:end].\n\nOnly extract things useful in FUTURE conversations. Most messages are not worth remembering.\n\nREMEMBER: lasting personal facts — dietary restrictions, preferences, personal details, workplace, location, tools, ongoing projects, routines, explicit \"remember this\" requests.\n\nDO NOT REMEMBER: temporary intents, one-time tasks, assistant actions (searching, writing files, generating code), assistant suggestions, implementation details, in-progress task status.\n\nRULES:\n- Assistant output is CONTEXT ONLY — never attribute assistant actions to the user\n- \"find X\" or \"do Y\" = one-time request, NOT a memory\n- Only store preferences explicitly stated (\"I like...\", \"I prefer...\", \"I always...\")\n- When in doubt, do NOT create a memory. Less is more.",
+      "type": "string"
+    },
+    "metadataStripping": {
+      "default": true,
+      "type": "boolean"
+    },
+    "relativeTimeDisplay": {
+      "default": true,
+      "type": "boolean"
+    },
+    "memoUsageFooter": {
+      "default": true,
+      "type": "boolean"
+    },
+    "profileCrossArrayDedup": {
+      "default": true,
+      "type": "boolean"
+    },
+    "everyMessageRecall": {
+      "default": false,
+      "type": "boolean"
+    },
+    "reinjectEveryN": {
+      "default": 0,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "autoCategoryTagging": {
+      "default": false,
+      "type": "boolean"
     }
   }
 }

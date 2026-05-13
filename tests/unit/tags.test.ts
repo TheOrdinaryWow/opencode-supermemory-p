@@ -92,7 +92,7 @@ beforeEach(() => {
   gitEmailCallCount = 0;
   gitRemoteResponder = new Error("not a git repo");
   gitRemoteCallCount = 0;
-  // T14: reset the in-process git-email cache between tests so each case
+  // Reset the in-process git-email cache between tests so each case
   // sees a fresh execSync call path. Without this, cached results from
   // earlier tests would mask the mocked responder.
   tags.resetTagsCache();
@@ -137,7 +137,7 @@ describe("getUserTag", () => {
   it("auto-generates a user tag from `{prefix}_user_{sha256(email).slice(0,16)}` (byte-identical)", () => {
     gitEmailResponder = "test@example.com\n";
     // sha256("test@example.com").slice(0,16) == 973dfe463ec85785
-    // This exact byte sequence MUST survive T14 (getGitEmail caching) and
+    // This exact byte sequence must survive getGitEmail caching and
     // any future refactor of tags.ts. Snapshot locks the full output string.
     expect(tags.getUserTag(mockConfig)).toMatchInlineSnapshot(`"opencode_user_973dfe463ec85785"`);
   });
@@ -326,7 +326,7 @@ describe("getTags", () => {
   });
 });
 
-describe("in-process cache for git email (T14)", () => {
+describe("in-process cache for git email", () => {
   it("cache hit: two getUserTag() calls trigger execSync exactly once", () => {
     gitEmailResponder = "test@example.com\n";
 
@@ -334,8 +334,8 @@ describe("in-process cache for git email (T14)", () => {
     tags.getUserTag(mockConfig);
     tags.getUserTag(mockConfig);
 
-    // T14 caching: second call returns the cached email and skips execSync.
-    // Before T14 this assertion locked toBe(2); the change to toBe(1) is the
+    // Caching: second call returns the cached email and skips execSync.
+    // Before caching this assertion was toBe(2); the change to toBe(1) is the
     // observable proof that caching is wired into both call sites.
     expect(gitEmailCallCount).toBe(1);
   });

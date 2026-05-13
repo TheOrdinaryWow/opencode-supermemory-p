@@ -14,7 +14,7 @@ import { createSessionState } from "@/session/state";
 
 interface CallLog {
   getProfile: Array<[string, string | undefined]>;
-  searchMemories: Array<[string, string]>;
+  searchMemories: Array<[string, string | string[]]>;
   listMemories: Array<[string, number | undefined]>;
 }
 
@@ -192,7 +192,7 @@ describe("handleChatMessage", () => {
 
     expect(output.parts).toHaveLength(0);
     expect(deps.client.calls.searchMemories).toHaveLength(0);
-    expect(deps.logs.some((l) => l.msg.includes("no text parts"))).toBe(true);
+    expect(deps.logs.some((l) => l.msg.includes("empty message"))).toBe(true);
   });
 
   it("swallows client errors and logs them without throwing", async () => {

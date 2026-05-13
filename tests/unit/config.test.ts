@@ -36,6 +36,25 @@ interface ConfigEvalResult {
     filterPrompt: string;
     keywordPatterns: string[];
     compactionThreshold: number;
+    // Memory-feature knobs.
+    incrementalCapture: boolean;
+    maxCaptureChars: number;
+    postCompactionReinject: boolean;
+    sessionEndSave: boolean;
+    signalExtraction: boolean;
+    signalKeywords: string[];
+    signalTurnsBefore: number;
+    recallKeywordPatterns: string[];
+    dedupEnabled: boolean;
+    dedupCacheSize: number;
+    entityContext: string;
+    metadataStripping: boolean;
+    relativeTimeDisplay: boolean;
+    memoUsageFooter: boolean;
+    profileCrossArrayDedup: boolean;
+    everyMessageRecall: boolean;
+    reinjectEveryN: number;
+    autoCategoryTagging: boolean;
   };
   isConfigured: boolean;
 }
@@ -244,6 +263,44 @@ describe("loadConfig — fixture round-trips", () => {
         "always\\s+remember",
       ],
       compactionThreshold: 0.8,
+      // Safe-on memory-feature knobs.
+      incrementalCapture: true,
+      maxCaptureChars: 5000,
+      postCompactionReinject: true,
+      sessionEndSave: true,
+      signalExtraction: true,
+      signalKeywords: [
+        "remember",
+        "important",
+        "save this",
+        "note this",
+        "don't forget",
+        "key decision",
+        "project info",
+        "my name",
+        "I work",
+        "I prefer",
+        "I use",
+        "I like",
+        "always",
+        "never",
+        "my team",
+        "my email",
+        "my company",
+      ],
+      signalTurnsBefore: 3,
+      recallKeywordPatterns: ["what did we", "remind me", "earlier you said", "what was the", "do you remember"],
+      dedupEnabled: true,
+      dedupCacheSize: 500,
+      entityContext: expect.stringContaining("User-assistant conversation"),
+      metadataStripping: true,
+      relativeTimeDisplay: true,
+      memoUsageFooter: true,
+      profileCrossArrayDedup: true,
+      // Costly-off memory-feature knobs.
+      everyMessageRecall: false,
+      reinjectEveryN: 0,
+      autoCategoryTagging: false,
     });
   });
 });

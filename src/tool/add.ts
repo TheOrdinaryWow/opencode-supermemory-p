@@ -20,7 +20,7 @@ export async function executeAdd(args: ToolArgs, deps: ToolDeps): Promise<string
   const scope = args.scope || "project";
   const containerTag = scope === "user" ? deps.tags.user : deps.tags.project;
 
-  const result = await deps.client.addMemory(sanitizedContent, containerTag, { type: args.type });
+  const result = await deps.client.addMemory(sanitizedContent, containerTag, { type: args.type, source: "user" });
 
   if (!result.success) {
     return JSON.stringify({

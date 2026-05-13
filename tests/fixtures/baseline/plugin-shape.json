@@ -2,12 +2,14 @@
   "defaultKeys": [
     "chat.message",
     "tool",
-    "event"
+    "event",
+    "experimental.session.compacting"
   ],
   "defaultType": "object",
   "hookTypes": {
     "chat.message": "function",
     "tool": "object",
-    "event": "function"
+    "event": "function",
+    "experimental.session.compacting": "function"
   }
 }
