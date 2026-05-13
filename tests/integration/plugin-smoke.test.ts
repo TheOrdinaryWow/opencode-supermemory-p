@@ -22,14 +22,20 @@ function createCtx() {
 async function withIsolatedHome<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const home = createTmpDir(label);
   const previousHome = process.env.HOME;
+  const previousLog = process.env.OPENCODE_SUPERMEMORY_LOG;
   const previousApiKey = process.env.SUPERMEMORY_API_KEY;
   try {
     process.env.HOME = home;
+    // Bun's os.homedir() ignores process.env.HOME, so force the log path
+    // explicitly to keep tests from writing to the real $HOME.
+    process.env.OPENCODE_SUPERMEMORY_LOG = join(home, ".local", "share", "opencode-supermemory-p", "log", "main.log");
     delete process.env.SUPERMEMORY_API_KEY;
     return await fn();
   } finally {
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;
+    if (previousLog === undefined) delete process.env.OPENCODE_SUPERMEMORY_LOG;
+    else process.env.OPENCODE_SUPERMEMORY_LOG = previousLog;
     if (previousApiKey === undefined) delete process.env.SUPERMEMORY_API_KEY;
     else process.env.SUPERMEMORY_API_KEY = previousApiKey;
     cleanupTmpDir(home);

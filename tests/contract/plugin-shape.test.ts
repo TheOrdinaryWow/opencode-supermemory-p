@@ -1,11 +1,30 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { cleanupTmpDir, createTmpDir } from "../helpers/tmpdir";
 
 const ROOT = process.cwd();
 const BASELINE_DIR = join(ROOT, "tests", "fixtures", "baseline");
 
 describe("plugin shape baseline", () => {
+  let tmpHome: string;
+  let previousLog: string | undefined;
+
+  beforeAll(() => {
+    // Bun's os.homedir() ignores process.env.HOME, so route the plugin log
+    // explicitly into a tmp dir via the env override the logger honours.
+    tmpHome = createTmpDir("plugin-shape-home");
+    previousLog = process.env.OPENCODE_SUPERMEMORY_LOG;
+    process.env.OPENCODE_SUPERMEMORY_LOG = join(tmpHome, "log", "main.log");
+  });
+
+  afterAll(() => {
+    if (previousLog === undefined) delete process.env.OPENCODE_SUPERMEMORY_LOG;
+    else process.env.OPENCODE_SUPERMEMORY_LOG = previousLog;
+    cleanupTmpDir(tmpHome);
+  });
+
   it("loads dist/index.js and the captured baseline", async () => {
     const baseline = JSON.parse(readFileSync(join(BASELINE_DIR, "plugin-shape.json"), "utf-8"));
     const mod = await import(join(ROOT, "dist", "index.js"));
