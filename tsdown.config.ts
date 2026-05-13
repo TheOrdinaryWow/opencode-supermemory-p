@@ -1,8 +1,7 @@
-import { defineConfig } from "tsdown";
+import { defineConfig, type TsdownHooks } from "tsdown";
 
-const external = ["@opencode-ai/plugin", "supermemory", "citty"];
-const cliRuntimeDeps = [/^(citty|fs-extra|jsonc-parser|zod)(\/.*)?$/];
 const outExtensions = () => ({ js: ".js", dts: ".d.ts" });
+
 const defaultExportSyntaxPlugin = {
   name: "default-export-syntax",
   renderChunk(code: string, chunk: { fileName: string }) {
@@ -12,6 +11,16 @@ const defaultExportSyntaxPlugin = {
       "export { SupermemoryPlugin };\nexport default SupermemoryPlugin;",
     );
   },
+};
+
+const copyTemplatesHook: TsdownHooks["build:done"] = async ({ options: { outDir } }) => {
+  const fs = await import("fs-extra");
+  const path = await import("node:path");
+
+  const templateSrc = path.resolve(import.meta.dirname, "cli/templates");
+  const templateDest = path.resolve(outDir, "templates");
+
+  await fs.copy(templateSrc, templateDest);
 };
 
 export default defineConfig([
@@ -25,7 +34,7 @@ export default defineConfig([
     outExtensions,
     plugins: [defaultExportSyntaxPlugin],
     deps: {
-      neverBundle: external,
+      neverBundle: ["@opencode-ai/plugin", "supermemory", "citty"],
     },
   },
   {
@@ -37,8 +46,11 @@ export default defineConfig([
     outExtensions,
     deps: {
       neverBundle: ["@opencode-ai/plugin", "supermemory"],
-      alwaysBundle: cliRuntimeDeps,
+      alwaysBundle: [/^(citty|fs-extra|jsonc-parser|zod)(\/.*)?$/],
       onlyBundle: false,
+    },
+    hooks: {
+      "build:done": copyTemplatesHook,
     },
   },
 ]);

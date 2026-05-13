@@ -9,8 +9,7 @@
     "opencode-supermemory": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsdown && cp -r cli/templates dist/templates",
-    "build:bun": "bun build ./src/index.ts --outdir ./dist --target node && bun build ./cli/index.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
+    "build": "tsdown",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "check": "biome check --write",
