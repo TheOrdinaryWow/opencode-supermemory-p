@@ -16,6 +16,7 @@ Your agent remembers what you tell it — across sessions, across projects.
 - [Usage with Oh My OpenAgent](#usage-with-oh-my-openagent)
 - [Development](#development)
 - [Logs](#logs)
+- [Maintenance](#maintenance)
 - [License](#license)
 
 ## Installation
@@ -453,6 +454,8 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 }
 ```
 
+Plugin-injected content (slash-command expansions, system reminders, session-context blocks) is filtered out at capture time. Memories ingested with this plugin enabled will not contain other plugins' markers, so no manual cleanup is needed for new sessions. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
+
 ## Development
 
 ```bash
@@ -476,6 +479,26 @@ Local install:
 ```bash
 tail -f ~/.local/share/opencode-supermemory-p/log/main.log
 ```
+
+## Maintenance
+
+### Purge legacy plugin-injected memories
+
+Memories captured by earlier versions of this plugin may contain content injected by other plugins (slash-command expansions, system reminders, etc.). The `purge-injected` script scans the Supermemory backend and removes them.
+
+Dry-run (default — lists matches without deleting):
+
+```bash
+bun run scripts/purge-injected.ts
+```
+
+Confirm deletion:
+
+```bash
+bun run scripts/purge-injected.ts --confirm
+```
+
+The script reads `SUPERMEMORY_API_KEY` from the environment or `~/.config/opencode/supermemory-p.jsonc`. Override with `--api-key sm_...` or `--base-url https://...` if needed.
 
 ## License
 
