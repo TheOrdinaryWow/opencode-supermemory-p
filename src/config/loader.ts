@@ -60,7 +60,7 @@ function isValidRegex(pattern: string): boolean {
  */
 function readFileConfig(homeDir: string): Record<string, unknown> {
   const configDir = join(homeDir, ".config", "opencode");
-  const candidates = [join(configDir, "supermemory.jsonc"), join(configDir, "supermemory.json")];
+  const candidates = [join(configDir, "supermemory-p.jsonc"), join(configDir, "supermemory-p.json")];
   for (const path of candidates) {
     if (!existsSync(path)) continue;
     try {

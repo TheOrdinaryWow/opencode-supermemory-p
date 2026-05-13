@@ -87,7 +87,7 @@ Then set it via environment variable:
 export SUPERMEMORY_API_KEY="sm_..."
 ```
 
-Or create `~/.config/opencode/supermemory.jsonc`:
+Or create `~/.config/opencode/supermemory-p.jsonc`:
 
 ```jsonc
 {
@@ -202,7 +202,7 @@ The `supermemory` tool is available to the agent:
 
 ## Configuration
 
-Create `~/.config/opencode/supermemory.jsonc`:
+Create `~/.config/opencode/supermemory-p.jsonc`:
 
 ```jsonc
 {

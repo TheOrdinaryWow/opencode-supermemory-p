@@ -41,7 +41,7 @@ interface ConfigEvalResult {
 
 interface EvalOpts {
   /** Optional file at `~/.config/opencode/<name>`. */
-  configFile?: { name: "supermemory.jsonc" | "supermemory.json"; content: string };
+  configFile?: { name: "supermemory-p.jsonc" | "supermemory-p.json"; content: string };
   /** Optional content of `~/.local/share/opencode-supermemory-p/credentials.json`. */
   credentialsContent?: string;
   /** Env overrides. `undefined` deletes the var; absent leaves parent default. */
@@ -108,7 +108,7 @@ function readFixture(name: string): string {
 describe("loadConfig — fixture round-trips", () => {
   it("minimal.jsonc: apiKey is exported; every other field falls through to DEFAULTS", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("minimal.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("minimal.jsonc") },
     });
     expect(res.config.apiKey).toBe("sm_test_minimal_0001");
     expect(res.isConfigured).toBe(true);
@@ -124,7 +124,7 @@ describe("loadConfig — fixture round-trips", () => {
 
   it("maximal.jsonc: every field flows through verbatim, including custom container tags", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("maximal.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("maximal.jsonc") },
     });
     expect(res.config.apiKey).toBe("sm_test_maximal_0002");
     expect(res.config.similarityThreshold).toBe(0.72);
@@ -162,7 +162,7 @@ describe("loadConfig — fixture round-trips", () => {
 
   it("with-comments.jsonc: line and block comments are stripped before parse", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("with-comments.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("with-comments.jsonc") },
     });
     expect(res.config.apiKey).toBe("sm_test_with_comments_0003");
     expect(res.config.similarityThreshold).toBe(0.65);
@@ -171,7 +171,7 @@ describe("loadConfig — fixture round-trips", () => {
 
   it("with-trailing-commas.jsonc: trailing commas before } and ] are tolerated", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("with-trailing-commas.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("with-trailing-commas.jsonc") },
     });
     expect(res.config.apiKey).toBe("sm_test_trailing_commas_0004");
     // User patterns merged after DEFAULT_KEYWORD_PATTERNS; duplicates are NOT deduped today.
@@ -182,7 +182,7 @@ describe("loadConfig — fixture round-trips", () => {
 
   it("mixed-quotes.jsonc: escaped quotes, URLs, and string-internal // remain intact", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("mixed-quotes.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("mixed-quotes.jsonc") },
     });
     expect(res.config.apiKey).toBe('sm_test_mixed_"quotes"_0005');
     expect(res.config.filterPrompt).toContain("// not-a-comment");
@@ -198,7 +198,7 @@ describe("loadConfig — fixture round-trips", () => {
     // JSONC silently equivalent to a missing file. Every config field is
     // the DEFAULTS value; apiKey is absent (no env, no creds).
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: readFixture("malformed.jsonc") },
+      configFile: { name: "supermemory-p.jsonc", content: readFixture("malformed.jsonc") },
     });
     expect(res.config.apiKey ?? null).toBeNull();
     expect(res.isConfigured).toBe(false);
@@ -256,7 +256,7 @@ describe("getApiKey — priority order is env > config file > credentials.json",
 
   it("uses SUPERMEMORY_API_KEY env var when all three are present", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: FILE_KEY },
+      configFile: { name: "supermemory-p.jsonc", content: FILE_KEY },
       credentialsContent: CRED_FILE,
       env: { SUPERMEMORY_API_KEY: "sm_from_env" },
     });
@@ -265,7 +265,7 @@ describe("getApiKey — priority order is env > config file > credentials.json",
 
   it("falls through to the config file apiKey when env is unset (file > credentials)", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: FILE_KEY },
+      configFile: { name: "supermemory-p.jsonc", content: FILE_KEY },
       credentialsContent: CRED_FILE,
     });
     expect(res.config.apiKey).toBe("sm_from_file");
@@ -290,8 +290,8 @@ describe("getApiKey — priority order is env > config file > credentials.json",
     const tmpHome = createTmpDir("cfg-test-jsonc-vs-json");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
-      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory.jsonc"), '{"apiKey":"sm_from_jsonc"}');
-      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory.json"), '{"apiKey":"sm_from_json"}');
+      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory-p.jsonc"), '{"apiKey":"sm_from_jsonc"}');
+      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory-p.json"), '{"apiKey":"sm_from_json"}');
 
       const env = { ...(process.env as Record<string, string>) };
       env.HOME = tmpHome;
@@ -319,14 +319,14 @@ describe("getApiKey — priority order is env > config file > credentials.json",
 describe("validateCompactionThreshold — out-of-range values fall back to default", () => {
   it("compactionThreshold > 1 → reverts to DEFAULTS.compactionThreshold (0.8)", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":1.5}' },
+      configFile: { name: "supermemory-p.jsonc", content: '{"compactionThreshold":1.5}' },
     });
     expect(res.config.compactionThreshold).toBe(0.8);
   });
 
   it("compactionThreshold <= 0 → reverts to default", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":0}' },
+      configFile: { name: "supermemory-p.jsonc", content: '{"compactionThreshold":0}' },
     });
     expect(res.config.compactionThreshold).toBe(0.8);
   });
@@ -334,7 +334,7 @@ describe("validateCompactionThreshold — out-of-range values fall back to defau
   it("compactionThreshold = 1 (boundary) is accepted verbatim", async () => {
     // Locks the boundary: `value > 1` rejects, `value === 1` accepts.
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":1}' },
+      configFile: { name: "supermemory-p.jsonc", content: '{"compactionThreshold":1}' },
     });
     expect(res.config.compactionThreshold).toBe(1);
   });
@@ -342,7 +342,7 @@ describe("validateCompactionThreshold — out-of-range values fall back to defau
   it("compactionThreshold of wrong type (string) → reverts to default", async () => {
     // Pins the `typeof value !== "number"` guard.
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: '{"compactionThreshold":"high"}' },
+      configFile: { name: "supermemory-p.jsonc", content: '{"compactionThreshold":"high"}' },
     });
     expect(res.config.compactionThreshold).toBe(0.8);
   });
@@ -352,7 +352,7 @@ describe("keywordPatterns — DEFAULT_KEYWORD_PATTERNS always present, invalid r
   it("invalid regex patterns are silently dropped from the user-supplied list", async () => {
     const res = await evalConfig({
       configFile: {
-        name: "supermemory.jsonc",
+        name: "supermemory-p.jsonc",
         content: '{"keywordPatterns":["valid_pattern","[unclosed","another\\\\d+"]}',
       },
     });
@@ -368,7 +368,7 @@ describe("keywordPatterns — DEFAULT_KEYWORD_PATTERNS always present, invalid r
 
   it("user-supplied empty keywordPatterns array leaves only the 16 DEFAULT_KEYWORD_PATTERNS", async () => {
     const res = await evalConfig({
-      configFile: { name: "supermemory.jsonc", content: '{"keywordPatterns":[]}' },
+      configFile: { name: "supermemory-p.jsonc", content: '{"keywordPatterns":[]}' },
     });
     expect(res.config.keywordPatterns).toHaveLength(16);
     expect(res.config.keywordPatterns[0]).toBe("remember");
@@ -462,13 +462,13 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
     }
   });
 
-  it("loadConfig reads ~/.config/opencode/supermemory.jsonc when present", async () => {
+  it("loadConfig reads ~/.config/opencode/supermemory-p.jsonc when present", async () => {
     const { loadConfig } = await import("@/config/loader");
     const tmpHome = createTmpDir("loader-jsonc");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
       writeFileSync(
-        join(tmpHome, ".config", "opencode", "supermemory.jsonc"),
+        join(tmpHome, ".config", "opencode", "supermemory-p.jsonc"),
         '{"apiKey":"sm_from_file_inproc","similarityThreshold":0.91,"compactionThreshold":0.42}',
       );
       const result = loadConfig({ homeDir: tmpHome, env: {} });
@@ -485,7 +485,7 @@ describe("loadConfig / getConfig — lazy in-process API", () => {
     const tmpHome = createTmpDir("loader-regex");
     try {
       mkdirSync(join(tmpHome, ".config", "opencode"), { recursive: true });
-      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory.jsonc"), '{"keywordPatterns":["valid_one","[unclosed","valid_two"]}');
+      writeFileSync(join(tmpHome, ".config", "opencode", "supermemory-p.jsonc"), '{"keywordPatterns":["valid_one","[unclosed","valid_two"]}');
       const result = loadConfig({ homeDir: tmpHome, env: {} });
       expect(result.keywordPatterns).toContain("remember"); // default survives
       expect(result.keywordPatterns).toContain("valid_one");
