@@ -104,6 +104,11 @@ function expectErrorKind(error: AppError, kind: AppError["kind"], message: strin
 beforeAll(async () => {
   previousApiKey = process.env.SUPERMEMORY_API_KEY;
   process.env.SUPERMEMORY_API_KEY = "sm_test_key";
+  // Bust any cached config left over from other test files (e.g. tags.test.ts
+  // calls getConfig() without an apiKey set) so getClient() picks up the env
+  // we just set instead of returning a poisoned singleton.
+  const { resetConfigCache } = await import("@/config/loader");
+  resetConfigCache();
   const mod = await import("@/memory/client");
   SupermemoryClient = mod.SupermemoryClient;
 });
