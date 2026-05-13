@@ -55,6 +55,7 @@ function createDeps(overrides: Partial<ChatHandlerDeps> = {}): ChatHandlerDeps &
       maxProfileItems: 5,
       memoUsageFooter: true,
       everyMessageRecall: false,
+      reinjectEveryN: 0,
       ...((overrides.config as object) ?? {}),
     } as ChatHandlerDeps["config"],
     tags: overrides.tags ?? { user: "u-tag", project: "p-tag" },

@@ -21,6 +21,7 @@ import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
 import { detectRecallKeyword, runEveryMessageRecall } from "@/recall/every-message";
+import { shouldPeriodicReinject } from "@/recall/periodic";
 import type { SessionState } from "@/session/state";
 import { generatePartId } from "@/shared/ids";
 
@@ -62,7 +63,13 @@ export interface ChatHandlerDeps {
   client: ChatClientLike;
   config: Pick<
     SupermemoryConfig,
-    "keywordPatterns" | "maxProjectMemories" | "injectProfile" | "maxProfileItems" | "recallKeywordPatterns" | "everyMessageRecall"
+    | "keywordPatterns"
+    | "maxProjectMemories"
+    | "injectProfile"
+    | "maxProfileItems"
+    | "recallKeywordPatterns"
+    | "everyMessageRecall"
+    | "reinjectEveryN"
   > & Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">>;
   tags: { user: string; project: string };
   injectedSessions: Pick<SessionState, "markInjected" | "wasInjected">;
@@ -70,6 +77,8 @@ export interface ChatHandlerDeps {
   log: (message: string, data?: unknown) => void;
   isConfigured: () => boolean;
 }
+
+const msgCounter = new Map<string, number>();
 
 /**
  * Runs once per assistant message. Responsibilities:
@@ -85,11 +94,13 @@ export interface ChatHandlerDeps {
  * OpenCode will surface the failure to the user.
  */
 export async function handleChatMessage(input: ChatHandlerInput, output: ChatHandlerOutput, deps: ChatHandlerDeps): Promise<void> {
-  if (!deps.isConfigured()) return;
+  const completedMessages = msgCounter.get(input.sessionID) ?? 0;
 
   const start = Date.now();
 
   try {
+    if (!deps.isConfigured()) return;
+
     const textParts = output.parts.filter((p): p is Part & { type: "text"; text: string } => p.type === "text");
 
     if (textParts.length === 0) {
@@ -127,6 +138,7 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     const hasRecallKeyword = detectRecallKeyword(userMessage, deps.config);
     const hasPendingReinject = deps.pendingReinjectSessions?.has(input.sessionID) === true;
     const shouldRecallAfterFirstMessage = deps.config.everyMessageRecall === true || hasRecallKeyword || hasPendingReinject;
+    let injectedThisTurn = false;
 
     if (isFirstMessage) {
       deps.injectedSessions.markInjected(input.sessionID);
@@ -172,14 +184,24 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
           duration,
           contextLength: memoryContext.length,
         });
+        injectedThisTurn = true;
       }
-    } else if (shouldRecallAfterFirstMessage) {
-      await runEveryMessageRecall(input, output, deps);
-      if (hasPendingReinject) {
-        deps.pendingReinjectSessions?.delete(input.sessionID);
+    } else {
+      if (shouldRecallAfterFirstMessage) {
+        await runEveryMessageRecall(input, output, deps);
+        injectedThisTurn = true;
+        if (hasPendingReinject) {
+          deps.pendingReinjectSessions?.delete(input.sessionID);
+        }
+      }
+
+      if (!injectedThisTurn && shouldPeriodicReinject(input.sessionID, deps.config.reinjectEveryN, msgCounter)) {
+        await runEveryMessageRecall(input, output, deps);
       }
     }
   } catch (error) {
     deps.log("chat.message: ERROR", { error: String(error) });
+  } finally {
+    msgCounter.set(input.sessionID, completedMessages + 1);
   }
 }
