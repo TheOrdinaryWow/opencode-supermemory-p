@@ -112,7 +112,26 @@ export class SupermemoryClient {
     return this.client;
   }
 
-  async searchMemories(query: string, containerTag: string): Promise<Result<SearchMemoriesResult, AppError>> {
+  async searchMemories(query: string, containerTag: string | string[]): Promise<Result<SearchMemoriesResult, AppError>> {
+    if (Array.isArray(containerTag)) {
+      return withResult("searchMemories", async () => {
+        const uniqueTags = [...new Set(containerTag)].filter((tag) => tag.length > 0);
+        const results = await Promise.all(uniqueTags.map((tag) => this.searchMemories(query, tag)));
+        const firstFailure = results.find((result) => !result.ok);
+        if (firstFailure && !firstFailure.ok) {
+          throw new Error(firstFailure.error.message);
+        }
+
+        const successful = results.filter((result): result is { ok: true; value: SearchMemoriesResult } => result.ok);
+        return {
+          success: true as const,
+          results: successful.flatMap((result) => result.value.results ?? []),
+          total: successful.reduce((total, result) => total + (result.value.results?.length ?? 0), 0),
+          timing: 0,
+        };
+      });
+    }
+
     const config = getConfig();
     logger.info("searchMemories: start", { containerTag });
     return withResult("searchMemories", async () => {
@@ -305,7 +324,7 @@ function unwrapOrLegacyShape<T, F extends { error: string }>(result: Result<T, A
 type LegacyFailure<T = object> = { success: false; error: string } & T;
 
 export const supermemoryClient = {
-  async searchMemories(query: string, containerTag: string) {
+  async searchMemories(query: string, containerTag: string | string[]) {
     const fallback: LegacyFailure<{ results: never[]; total: number; timing: number }> = {
       success: false,
       error: "Failed to search memories",

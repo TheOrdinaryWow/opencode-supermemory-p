@@ -14,7 +14,7 @@ import { createSessionState } from "@/session/state";
 
 interface CallLog {
   getProfile: Array<[string, string | undefined]>;
-  searchMemories: Array<[string, string]>;
+  searchMemories: Array<[string, string | string[]]>;
   listMemories: Array<[string, number | undefined]>;
 }
 

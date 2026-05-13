@@ -20,6 +20,7 @@ import { detectMemoryKeyword } from "@/chat/keywords";
 import { MEMORY_NUDGE_MESSAGE } from "@/chat/nudge";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
+import { detectRecallKeyword, runEveryMessageRecall } from "@/recall/every-message";
 import type { SessionState } from "@/session/state";
 import { generatePartId } from "@/shared/ids";
 
@@ -53,15 +54,19 @@ type ListResult =
 
 export interface ChatClientLike {
   getProfile: (containerTag: string, query?: string) => Promise<ProfileResult>;
-  searchMemories: (query: string, containerTag: string) => Promise<SearchResult>;
+  searchMemories: (query: string, containerTag: string | string[]) => Promise<SearchResult>;
   listMemories: (containerTag: string, limit?: number) => Promise<ListResult>;
 }
 
 export interface ChatHandlerDeps {
   client: ChatClientLike;
-  config: Pick<SupermemoryConfig, "keywordPatterns" | "maxProjectMemories">;
+  config: Pick<
+    SupermemoryConfig,
+    "keywordPatterns" | "maxProjectMemories" | "injectProfile" | "maxProfileItems" | "recallKeywordPatterns" | "everyMessageRecall"
+  > & Partial<Pick<SupermemoryConfig, "relativeTimeDisplay" | "profileCrossArrayDedup" | "memoUsageFooter">>;
   tags: { user: string; project: string };
   injectedSessions: Pick<SessionState, "markInjected" | "wasInjected">;
+  pendingReinjectSessions?: Pick<Set<string>, "delete" | "has">;
   log: (message: string, data?: unknown) => void;
   isConfigured: () => boolean;
 }
@@ -119,6 +124,9 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     }
 
     const isFirstMessage = !deps.injectedSessions.wasInjected(input.sessionID);
+    const hasRecallKeyword = detectRecallKeyword(userMessage, deps.config);
+    const hasPendingReinject = deps.pendingReinjectSessions?.has(input.sessionID) === true;
+    const shouldRecallAfterFirstMessage = deps.config.everyMessageRecall === true || hasRecallKeyword || hasPendingReinject;
 
     if (isFirstMessage) {
       deps.injectedSessions.markInjected(input.sessionID);
@@ -164,6 +172,11 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
           duration,
           contextLength: memoryContext.length,
         });
+      }
+    } else if (shouldRecallAfterFirstMessage) {
+      await runEveryMessageRecall(input, output, deps);
+      if (hasPendingReinject) {
+        deps.pendingReinjectSessions?.delete(input.sessionID);
       }
     }
   } catch (error) {
