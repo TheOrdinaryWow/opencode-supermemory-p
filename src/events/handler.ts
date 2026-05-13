@@ -8,7 +8,9 @@
 import { handleMessageUpdatedForCapture, type IncrementalCaptureDeps } from "@/capture/incremental";
 import { handleSessionEnd, type SessionEndDeps } from "@/capture/session-end";
 import * as tracker from "@/capture/tracker";
+import { handleSessionCompacted } from "@/compaction/post-reinject";
 import { getConfig } from "@/config/loader";
+import type { SupermemoryConfig } from "@/config/schema";
 import { resultSupermemoryClient } from "@/memory/client";
 import { extractSignalContent } from "@/signal/extract";
 
@@ -18,6 +20,7 @@ export interface EventInput {
 
 export interface EventDeps {
   compactionHook: { event(input: EventInput): Promise<void> } | null;
+  config?: SupermemoryConfig;
   incrementalCapture?: IncrementalCaptureDeps;
   sessionEnd?: SessionEndDeps;
 }
@@ -31,6 +34,10 @@ export async function handleEvent(input: EventInput, deps: EventDeps): Promise<v
 
   if ((input.event.type === "session.deleted" || input.event.type === "session.idle") && deps.sessionEnd) {
     void handleSessionEnd(input as Parameters<typeof handleSessionEnd>[0], deps.sessionEnd);
+  }
+
+  if (input.event.type === "session.compacted") {
+    handleSessionCompacted(input as Parameters<typeof handleSessionCompacted>[0], deps.config ?? getConfig());
   }
 
   if (deps.compactionHook) {

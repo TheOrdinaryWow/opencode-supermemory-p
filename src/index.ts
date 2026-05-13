@@ -3,6 +3,7 @@ import type { Plugin, PluginInput } from "@opencode-ai/plugin";
 import { handleChatMessage } from "@/chat/handler";
 import { type CompactionContext, createCompactionHook } from "@/compaction/index";
 import { createModelLimitLookup } from "@/compaction/model-limits";
+import { pendingReinjectSessions } from "@/compaction/post-reinject";
 import { getConfig } from "@/config/loader";
 import { extractSignalContent } from "@/signal/extract";
 import * as tracker from "@/capture/tracker";
@@ -28,6 +29,7 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
     event: (input: { event: { type: string; properties?: unknown } }) =>
       handleEvent(input, {
         compactionHook,
+        config: deps.config,
         sessionEnd: ctx.client
           ? {
               config: deps.config,
@@ -60,5 +62,5 @@ function createDeps(ctx: PluginInput) {
   };
   log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured() });
   if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
-  return { client: supermemoryClient, config, tags, injectedSessions: sessionState, log, isConfigured };
+  return { client: supermemoryClient, config, tags, injectedSessions: sessionState, pendingReinjectSessions, log, isConfigured };
 }
