@@ -4,25 +4,31 @@
  * user actually say" consumes a `PromptBoundary` rather than parsing parts
  * directly.
  *
- * Design principle — `polluted-skip`:
- *   Either a message is clean and we treat it as user input verbatim, or it
- *   contains ANY plugin/orchestrator scaffolding marker and we skip it
- *   ENTIRELY from the capture stream. We do not try to surgically strip out
- *   parts of a message — that path leads to fragile regex chains chasing
- *   every new marker some upstream framework introduces.
+ * Design — strip, don't skip:
+ *   When a message contains plugin/orchestrator scaffolding, we strip the
+ *   known marker shapes and keep whatever user content remains. Dropping
+ *   the entire message is too aggressive — real conversations often mix
+ *   scaffolding headers (e.g. `[analyze-mode]\n…\n---\n`) with actual user
+ *   text on the same turn.
  *
- * The boundary surface is two pieces of information:
- *   - `userText`: best-effort extraction of the user's typed input. For
- *     messages wrapped in `<user-request>` or `<user-task>` (slash-command
- *     expansion), we pull the inner body. Otherwise we return the raw
- *     concatenated text. Use this for SEARCH and KEYWORD DETECTION.
- *   - `isPolluted`: true when the raw text matches ANY pollution pattern.
- *     Use this to GATE CAPTURE. Polluted messages must never enter
- *     long-term memory.
+ *   `isPolluted` is exposed as an observability flag (used in logs and the
+ *   purge script) so downstream callers can SEE when a message was cleaned,
+ *   even though we don't gate capture on it. Capture gates on whether
+ *   anything remained after stripping (`userText.length > 0`).
  *
- * `POLLUTION_PATTERNS` is the single source of truth used by both the
- * runtime hooks and the standalone `scripts/purge-injected.ts` script.
- * Add new markers here.
+ * The boundary surface:
+ *   - `userText`: best-effort user content. For slash-command expansions
+ *     wrapped in `<user-request>` / `<user-task>` we extract the inner
+ *     body verbatim. Otherwise we run `stripScaffolding` over the raw
+ *     text and return the trimmed remainder.
+ *   - `rawText`: concatenated text of eligible (non-synthetic,
+ *     non-ignored) parts before any cleaning. Useful for debugging when
+ *     extraction is unexpectedly empty.
+ *   - `isPolluted`: true when ANY detection pattern matched the raw text.
+ *
+ * The pattern lists below are the single source of truth used by both the
+ * runtime hooks and `scripts/purge-injected.ts` — keep the purge script's
+ * copy in sync when adding markers here.
  */
 
 export type MessageRole = "user" | "assistant";
@@ -35,32 +41,11 @@ export interface TextPartLike {
 }
 
 export interface PromptBoundary {
-  /** Concatenated text of eligible (non-synthetic, non-ignored) parts. */
   rawText: string;
-  /**
-   * Best-effort user-typed content extracted from `rawText`. For
-   * slash-command expansions wrapped in `<user-request>` / `<user-task>`,
-   * this is the inner body; otherwise it is `rawText` trimmed.
-   *
-   * Always safe to use as a search query — does NOT imply the message is
-   * clean enough to capture. Check `isPolluted` for that.
-   */
   userText: string;
-  /** Alias of `userText`. */
   text: string;
-  /**
-   * True when the raw message contains plugin/orchestrator scaffolding
-   * (OMO injections, Sisyphus orchestrator scaffolds, supermemory's own
-   * injections, slash-command wrappers, system directives, etc.).
-   *
-   * Capture-path callers MUST skip polluted messages entirely. Query-path
-   * callers can still use `userText` — it represents what the user
-   * meaningfully typed, even when wrapped.
-   */
   isPolluted: boolean;
-  /** OpenCode session this boundary belongs to, if known. */
   sessionID?: string;
-  /** Role of the message this boundary was extracted from, if known. */
   role?: MessageRole;
 }
 
@@ -70,38 +55,73 @@ export interface PromptBoundaryContext {
 }
 
 /**
- * Markers that flag a message as containing plugin/orchestrator scaffolding.
- * Matching ANY pattern flips `isPolluted` to true.
+ * Multi-shape strip patterns. Each entry deletes a specific scaffolding
+ * shape from text. Applied in order; later entries clean up residue from
+ * earlier ones.
+ */
+const SCAFFOLDING_PATTERNS: ReadonlyArray<RegExp> = [
+  // Block-tag wrappers, content + tags.
+  /<auto-slash-command>[\s\S]*?<\/auto-slash-command>/gi,
+  /<command-instruction>[\s\S]*?<\/command-instruction>/gi,
+  /<session-context>[\s\S]*?<\/session-context>/gi,
+  /<system-reminder>[\s\S]*?<\/system-reminder>/gi,
+  /<supermemory-context>[\s\S]*?<\/supermemory-context>/gi,
+  /<Work_Context>[\s\S]*?<\/Work_Context>/g,
+  /<available_skills>[\s\S]*?<\/available_skills>/gi,
+  /<skill_content[^>]*>[\s\S]*?<\/skill_content>/gi,
+
+  // Sisyphus multi-line preambles (mode block through the trailing
+  // delegate_task example, or the delegate_task reminder on its own).
+  /\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\s\S]*?Example: delegate_task\([^)]*\)\s*/g,
+  /MANDATORY delegate_task params:[\s\S]*?Example: delegate_task\([^)]*\)\s*/g,
+
+  // Auto-Selected Plan announcement through the boulder.json kickoff line.
+  /## Auto-Selected Plan[\s\S]*?boulder\.json has been created\.[^\n]*\n?/g,
+
+  // Plan Not Found prompt block.
+  /## Plan Not Found[\s\S]*?Ask the user which plan to work on\.\s*/g,
+
+  // Line-anchored fallbacks for orphan headers that escaped the multi-line
+  // patterns above.
+  /^[\t ]*## F\d+:.*$/gm,
+  /^[\t ]*## Auto-Selected Plan[\t ]*$/gm,
+  /^[\t ]*## Plan Not Found\b.*$/gm,
+  /^[\t ]*boulder\.json has been created\..*$/gm,
+  /^[\t ]*\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\t ]*$/gm,
+  /^[\t ]*\[SYSTEM DIRECTIVE:[^\]]*\].*$/gm,
+  /^[\t ]*\[restore checkpointed session[^\]]*\].*$/gm,
+  /^[\t ]*<!--\s*OMO_INTERNAL_INITIATOR\s*-->[\t ]*$/gm,
+
+  // Orphan tag fragments (when block extraction missed a closer).
+  /<\/?(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|Work_Context)[^>]*>/gi,
+
+  // Standalone signature phrases that hooks key off without surrounding tags.
+  /You are starting a Sisyphus work session\./g,
+];
+
+/**
+ * Cheap detection-only patterns. Used for the `isPolluted` flag — a fast
+ * `regex.test()` rather than a full strip pass.
  *
- * Keep this list in sync with `scripts/purge-injected.ts` (the standalone
- * cleanup script uses its own copy so it can run without depending on the
- * full module graph).
+ * Keep these as a SUPERSET of what `SCAFFOLDING_PATTERNS` removes. Anything
+ * we strip should also be detected here, plus the user-wrapper tags (which
+ * are NOT stripped — their content is the user's actual input).
+ *
+ * `scripts/purge-injected.ts` keeps its own copy of this list — keep them
+ * in sync when adding markers.
  */
 export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
-  // Plugin block wrappers (OMO and similar). Match the opening tag only — a
-  // bare `<system-reminder` is enough to flag the message; we don't need to
-  // care whether the closer is balanced because we will drop the whole
-  // message anyway.
   /<(?:auto-slash-command|command-instruction|session-context|system-reminder|supermemory-context|user-request|user-task)\b/i,
-  // Sisyphus orchestrator scaffold wrapper.
   /<Work_Context\b/,
-  // Skill tool output — SKILL.md bodies loaded into the conversation are not
-  // user-typed content even though they ride in the user-message stream.
-  /<skill_content\b/i,
-  /<available_skills\b/i,
-  // System directive line headers.
+  /<(?:available_skills|skill_content)\b/i,
   /\[SYSTEM DIRECTIVE:/i,
   /\[restore checkpointed session/i,
   /<!--\s*OMO_INTERNAL_INITIATOR\s*-->/i,
-  // Sisyphus task briefs (`## F1:` through `## F9:`).
   /^[\t ]*## F\d+:/m,
-  // Sisyphus plan-management headers and announcements.
   /^[\t ]*## Auto-Selected Plan[\t ]*$/m,
   /^[\t ]*## Plan Not Found\b/m,
   /^[\t ]*boulder\.json has been created\./m,
-  // Sisyphus mode indicators on their own line.
   /^[\t ]*\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\t ]*$/m,
-  // Standalone scaffolding signature strings.
   /You are starting a Sisyphus work session\./,
   /MANDATORY delegate_task params:/,
 ];
@@ -109,9 +129,9 @@ export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
 const USER_WRAPPER_PATTERN = /<(user-request|user-task)>([\s\S]*?)<\/\1>/gi;
 
 /**
- * True iff `text` contains any pollution marker.
- *
- * Cheap (compiled regex tests, no allocations). Safe on empty / undefined.
+ * True iff the text contains any known scaffolding marker. Observability
+ * only — capture-path callers do NOT gate on this. Use `userText` for
+ * gating instead (empty after strip → skip).
  */
 export function isPolluted(text: string | undefined | null): boolean {
   if (!text) return false;
@@ -119,13 +139,20 @@ export function isPolluted(text: string | undefined | null): boolean {
 }
 
 /**
- * Pull the user's actual typed content out of a raw message body. If the
- * body is wrapped in `<user-request>` / `<user-task>` (OMO slash-command
- * expansion), we extract the inner body. Otherwise we return the trimmed
- * raw text — the caller can decide whether to use it based on
- * `isPolluted`.
+ * Strip every known scaffolding shape from `text` and tidy up the
+ * remaining whitespace. The returned string is what the user actually
+ * typed (best-effort).
  */
-function extractUserContent(rawText: string): string {
+export function stripScaffolding(text: string): string {
+  if (!text) return "";
+  let result = text;
+  for (const pattern of SCAFFOLDING_PATTERNS) {
+    result = result.replace(pattern, "");
+  }
+  return result.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function extractWrappedUserContent(rawText: string): string {
   if (!rawText) return "";
   const wrapped: string[] = [];
   for (const match of rawText.matchAll(USER_WRAPPER_PATTERN)) {
@@ -135,14 +162,19 @@ function extractUserContent(rawText: string): string {
       if (trimmed.length > 0) wrapped.push(trimmed);
     }
   }
-  if (wrapped.length > 0) return wrapped.join("\n").trim();
-  return rawText.trim();
+  return wrapped.join("\n").trim();
+}
+
+function extractUserContent(rawText: string): string {
+  if (!rawText) return "";
+  const wrapped = extractWrappedUserContent(rawText);
+  if (wrapped.length > 0) return wrapped;
+  return stripScaffolding(rawText);
 }
 
 /**
- * Build a `PromptBoundary` from raw parts + optional caller context. Always
- * the preferred entry point for hooks. Returns a frozen object so callers
- * can pass it around without worrying about mutation.
+ * Build a `PromptBoundary` from raw parts + optional caller context. The
+ * preferred entry point for hooks.
  */
 export function createPromptBoundary(parts: readonly TextPartLike[] | undefined, context: PromptBoundaryContext = {}): PromptBoundary {
   const eligible = (parts ?? []).filter(
@@ -162,13 +194,10 @@ export function createPromptBoundary(parts: readonly TextPartLike[] | undefined,
 
 /**
  * Sanitize a memory-context string before injecting it back into a chat
- * message. Polluted text never makes it through — better to inject nothing
- * than to leak markers that re-trigger downstream plugins (this was the
- * root cause of the original Atlas-bug regression).
- *
- * Clean text passes through unchanged.
+ * message. Strips known scaffolding shapes — keeps any clean content so
+ * useful context survives even when individual memories were captured
+ * with markers in them.
  */
 export function sanitizeMemoryContextForInjection(memoryContext: string): string {
-  if (!memoryContext) return "";
-  return isPolluted(memoryContext) ? "" : memoryContext;
+  return stripScaffolding(memoryContext);
 }

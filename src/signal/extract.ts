@@ -42,7 +42,7 @@ export function groupIntoTurns(messages: Message[]): Turn[] {
     const boundary = createPromptBoundary(message.parts, { sessionID: message.sessionID, role: message.role });
     return {
       role: message.role,
-      text: boundary.isPolluted ? "" : boundary.userText,
+      text: boundary.userText,
       messageId: message.id,
       sessionID: boundary.sessionID,
       polluted: boundary.isPolluted,

@@ -141,7 +141,7 @@ describe("handleMessageUpdatedForCapture", () => {
     expect(addMemory).toHaveBeenCalledTimes(0);
   });
 
-  it("skips a message that contains orchestrator scaffolding (Work_Context)", async () => {
+  it("strips Work_Context scaffolding but captures surrounding user content", async () => {
     const { deps, addMemory } = makeDeps();
 
     await handleMessageUpdatedForCapture(
@@ -149,10 +149,11 @@ describe("handleMessageUpdatedForCapture", () => {
       deps,
     );
 
-    expect(addMemory).toHaveBeenCalledTimes(0);
+    expect(addMemory).toHaveBeenCalledTimes(1);
+    expect(addMemory.mock.calls[0]?.[0]).toBe("stuff");
   });
 
-  it("skips a message that contains a system reminder", async () => {
+  it("skips a message that is 100% scaffolding (system-reminder only)", async () => {
     const { deps, addMemory } = makeDeps();
 
     await handleMessageUpdatedForCapture(makeEvent({ parts: [{ type: "text", text: "<system-reminder>do x</system-reminder>" }] }), deps);
@@ -160,14 +161,23 @@ describe("handleMessageUpdatedForCapture", () => {
     expect(addMemory).toHaveBeenCalledTimes(0);
   });
 
-  it("skips a message that opens with a Sisyphus mode indicator", async () => {
+  it("strips Sisyphus mode preamble and captures only the user content after", async () => {
     const { deps, addMemory } = makeDeps();
+    const text = [
+      "[analyze-mode]",
+      "ANALYSIS MODE. Gather context before diving deep:",
+      "some block",
+      'Example: delegate_task(subagent_type="explore", prompt="...", run_in_background=true)',
+      "",
+      "---",
+      "",
+      "real stuff",
+    ].join("\n");
 
-    await handleMessageUpdatedForCapture(
-      makeEvent({ parts: [{ type: "text", text: "[analyze-mode]\nANALYSIS MODE...\n\n---\n\nreal stuff" }] }),
-      deps,
-    );
+    await handleMessageUpdatedForCapture(makeEvent({ parts: [{ type: "text", text }] }), deps);
 
-    expect(addMemory).toHaveBeenCalledTimes(0);
+    expect(addMemory).toHaveBeenCalledTimes(1);
+    expect(addMemory.mock.calls[0]?.[0]).toContain("real stuff");
+    expect(addMemory.mock.calls[0]?.[0]).not.toContain("ANALYSIS MODE");
   });
 });

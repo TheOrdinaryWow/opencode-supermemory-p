@@ -162,15 +162,19 @@ describe("sanitizeMemoryContextForInjection", () => {
     expect(sanitizeMemoryContextForInjection(clean)).toBe(clean);
   });
 
-  it("returns empty string when memory text contains ANY pollution marker", () => {
-    // The point: legacy memories captured before pollution filtering may
-    // contain markers. Rather than partially strip them (fragile), we drop
-    // the whole injection. Better no context than markers that re-trigger
-    // downstream plugins.
-    expect(sanitizeMemoryContextForInjection(`prefix ${OMO_START_WORK_MARKER} suffix`)).toBe("");
-    expect(sanitizeMemoryContextForInjection("user pref\n<session-context>x</session-context>")).toBe("");
+  it("strips known scaffolding shapes but preserves surrounding clean text", () => {
+    // Strip-line behaviour: remove the marker, keep the rest. Better than
+    // dropping the entire injection wholesale — surrounding context still
+    // has memory value.
+    expect(sanitizeMemoryContextForInjection(`prefix ${OMO_START_WORK_MARKER} suffix`)).toBe("prefix  suffix");
+    expect(sanitizeMemoryContextForInjection("user pref\n<session-context>x</session-context>")).toBe("user pref");
+    expect(sanitizeMemoryContextForInjection("<Work_Context>policy</Work_Context>\nleftover memo")).toBe("leftover memo");
     expect(sanitizeMemoryContextForInjection("## F1: audit body")).toBe("");
-    expect(sanitizeMemoryContextForInjection("[analyze-mode]\nbody")).toBe("");
-    expect(sanitizeMemoryContextForInjection("<Work_Context>policy</Work_Context>")).toBe("");
+    expect(sanitizeMemoryContextForInjection("[analyze-mode]\nbody")).toBe("body");
+  });
+
+  it("returns empty when text was 100% scaffolding", () => {
+    expect(sanitizeMemoryContextForInjection("<system-reminder>nothing else</system-reminder>")).toBe("");
+    expect(sanitizeMemoryContextForInjection("<Work_Context>only this</Work_Context>")).toBe("");
   });
 });

@@ -25,7 +25,7 @@ describe("signal extraction", () => {
     ]);
   });
 
-  it("propagates sessionID and marks polluted slash-command messages", () => {
+  it("extracts wrapped user content and flags polluted on slash-command messages", () => {
     const message: Message = {
       id: "u_omo",
       role: "user",
@@ -35,10 +35,9 @@ describe("signal extraction", () => {
 
     const [turn] = groupIntoTurns([message]);
 
-    // Polluted message — capture-path consumers will skip it. Text is
-    // emptied so downstream filters that key off `text.length > 0` exclude
-    // it from signal extraction.
-    expect(turn?.text).toBe("");
+    // strip-line behaviour: wrapper inner content survives so the turn
+    // still has signal value. `polluted` stays true for observability.
+    expect(turn?.text).toBe("real ask");
     expect(turn?.polluted).toBe(true);
     expect(turn?.sessionID).toBe("ses_flow");
   });

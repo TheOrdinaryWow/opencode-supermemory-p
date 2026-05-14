@@ -74,6 +74,5 @@ function formatMessageTurn(message: Message): string[] {
   if (message.role !== "user" && message.role !== "assistant") return [];
 
   const boundary = createPromptBoundary(message.parts, { sessionID: message.sessionID, role: message.role });
-  if (boundary.isPolluted) return [];
   return boundary.userText.length > 0 ? [`[${message.role}] ${boundary.userText}`] : [];
 }
