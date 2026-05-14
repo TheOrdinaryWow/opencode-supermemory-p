@@ -9,6 +9,7 @@ import { type CompactionContext, createCompactionHook } from "@/compaction/index
 import { createModelLimitLookup } from "@/compaction/model-limits";
 import { pendingReinjectSessions } from "@/compaction/post-reinject";
 import { handlePreCompactionSave } from "@/compaction/pre-save";
+import { isProjectIgnored } from "@/config/ignore";
 import { getConfig } from "@/config/loader";
 import { handleEvent } from "@/events/handler";
 import { SupermemoryClient, supermemoryClient } from "@/memory/client";
@@ -24,7 +25,7 @@ const DEDUP_DATA_DIR = join(homedir(), ".local", "share", "opencode-supermemory-
 export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   const deps = createDeps(ctx);
   const compactionHook =
-    deps.config.apiKey && ctx.client
+    deps.isConfigured() && ctx.client
       ? createCompactionHook(ctx as CompactionContext, deps.tags, {
           threshold: deps.config.compactionThreshold,
           getModelLimit: createModelLimitLookup(ctx, deps.log),
@@ -90,6 +91,7 @@ function createDeps(ctx: PluginInput) {
   initLogger();
   const config = getConfig();
   const tags = getTags(ctx.directory);
+  const ignored = isProjectIgnored(ctx.directory);
   const sessionState = createSessionState();
   const dedupCache = createDedupCache({
     dedupEnabled: config.dedupEnabled,
@@ -98,16 +100,17 @@ function createDeps(ctx: PluginInput) {
   });
   const resultClient = new SupermemoryClient({ dedupCache });
   const client = createLegacyClient(resultClient);
-  const isConfigured = () => !!config.apiKey;
+  const isConfigured = () => !!config.apiKey && !ignored;
   const log = (message: string, data?: unknown) => {
     rootLogger.info(message, data as Record<string, unknown> | undefined);
   };
   process.on("beforeExit", () => {
     void dedupCache.flush().catch((error) => log("dedup cache flush failed", { error: String(error) }));
   });
-  log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured() });
-  if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
-  return { client, resultClient, config, tags, injectedSessions: sessionState, pendingReinjectSessions, log, isConfigured };
+  log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured(), ignored });
+  if (ignored) log("Plugin disabled - .supermemoryignore present in project directory");
+  else if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
+  return { client, resultClient, config, tags, ignored, injectedSessions: sessionState, pendingReinjectSessions, log, isConfigured };
 }
 
 function normalizeSdkMessages(response: {

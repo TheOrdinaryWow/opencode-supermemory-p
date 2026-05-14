@@ -7,6 +7,7 @@ Your agent remembers what you tell it — across sessions, across projects.
 ## Table of Contents
 
 - [Installation](#installation)
+- [Disabling Per Project](#disabling-per-project)
 - [Features](#features)
 - [Tool Usage](#tool-usage)
 - [Memory Scoping](#memory-scoping)
@@ -56,6 +57,18 @@ API key resolution (highest priority first):
 **Verify**: restart OpenCode, run `opencode -c`, look for `supermemory` in the tools list. If missing, check `tail ~/.local/share/opencode-supermemory-p/log/main.log`.
 
 **Initialize codebase memory** (optional): run `/supermemory-init` to have the agent explore and memorize the codebase.
+
+### Disabling Per Project
+
+To disable the plugin entirely for a single project, drop an empty `.supermemoryignore` file at the project root:
+
+```bash
+touch .supermemoryignore
+```
+
+When this file is present, the plugin loads but every hook becomes a no-op — no context injection, no capture, no compaction, no tool calls against Supermemory. The `SUPERMEMORY_API_KEY` is ignored for this project; other projects in the same OpenCode install are unaffected.
+
+The check is presence-only (file contents are not parsed), matching the `.gitignore` / `.dockerignore` convention. Remove the file to re-enable the plugin.
 
 ## Features
 
