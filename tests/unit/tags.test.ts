@@ -12,7 +12,7 @@ const mockConfig: {
   containerTagPrefix: string;
   userContainerTag: string | undefined;
   projectContainerTag: string | undefined;
-  projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName";
+  projectTagStrategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName" | "rawProjectName";
 } = {
   containerTagPrefix: "opencode",
   userContainerTag: undefined,
@@ -294,6 +294,51 @@ describe("getProjectTag", () => {
     gitRemoteResponder = "https://github.com/TheOrdinaryWow/abc.git\n";
     mockConfig.projectTagStrategy = "rawGitRepoName";
     expect(tags.getProjectTag("/test/project", mockConfig)).toBe("my-prefix-_project_TheOrdinaryWow_abc");
+  });
+});
+
+describe("getProjectTag — rawProjectName strategy", () => {
+  it("uses the last segment of the absolute directory path verbatim", () => {
+    mockConfig.projectTagStrategy = "rawProjectName";
+    expect(tags.getProjectTag("/Users/alice/code/my-project", mockConfig)).toBe("opencode_project_my-project");
+  });
+
+  it("strips trailing slashes before taking the basename", () => {
+    mockConfig.projectTagStrategy = "rawProjectName";
+    expect(tags.getProjectTag("/Users/alice/code/my-project/", mockConfig)).toBe("opencode_project_my-project");
+  });
+
+  it("does NOT consult the git remote", () => {
+    mockConfig.projectTagStrategy = "rawProjectName";
+    gitRemoteResponder = () => {
+      throw new Error("rawProjectName must not invoke git");
+    };
+    expect(tags.getProjectTag("/Users/alice/code/my-project", mockConfig)).toBe("opencode_project_my-project");
+    expect(gitRemoteCallCount).toBe(0);
+  });
+
+  it("falls back to hashDirectory when basename is empty (root directory)", () => {
+    mockConfig.projectTagStrategy = "rawProjectName";
+    // sha256("/").slice(0,16) is locked by the snapshot below — any change
+    // here means hashDirectory itself moved, which would be a separate bug.
+    const rootTag = tags.getProjectTag("/", mockConfig);
+    mockConfig.projectTagStrategy = "hashDirectory";
+    const directHash = tags.getProjectTag("/", mockConfig);
+    expect(rootTag).toBe(directHash);
+  });
+
+  it("falls back to hashDirectory when directory is the empty string", () => {
+    mockConfig.projectTagStrategy = "rawProjectName";
+    const emptyTag = tags.getProjectTag("", mockConfig);
+    mockConfig.projectTagStrategy = "hashDirectory";
+    const directHash = tags.getProjectTag("", mockConfig);
+    expect(emptyTag).toBe(directHash);
+  });
+
+  it("honors containerTagPrefix", () => {
+    mockConfig.containerTagPrefix = "my-prefix-";
+    mockConfig.projectTagStrategy = "rawProjectName";
+    expect(tags.getProjectTag("/Users/alice/code/my-project", mockConfig)).toBe("my-prefix-_project_my-project");
   });
 });
 

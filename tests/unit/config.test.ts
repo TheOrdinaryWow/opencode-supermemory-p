@@ -494,6 +494,14 @@ describe("SupermemoryConfigSchema — in-process zod validation", () => {
     expect(SupermemoryConfigSchema.parse({ compactionThreshold: 1.5 }).compactionThreshold).toBe(0.8);
     expect(SupermemoryConfigSchema.parse({ compactionThreshold: NaN }).compactionThreshold).toBe(0.8);
   });
+
+  it("projectTagStrategy: accepts all four strategy literals", async () => {
+    const { SupermemoryConfigSchema } = await import("@/config/schema");
+    expect(SupermemoryConfigSchema.parse({ projectTagStrategy: "hashDirectory" }).projectTagStrategy).toBe("hashDirectory");
+    expect(SupermemoryConfigSchema.parse({ projectTagStrategy: "hashGitRepoName" }).projectTagStrategy).toBe("hashGitRepoName");
+    expect(SupermemoryConfigSchema.parse({ projectTagStrategy: "rawGitRepoName" }).projectTagStrategy).toBe("rawGitRepoName");
+    expect(SupermemoryConfigSchema.parse({ projectTagStrategy: "rawProjectName" }).projectTagStrategy).toBe("rawProjectName");
+  });
 });
 
 describe("loadConfig / getConfig — lazy in-process API", () => {

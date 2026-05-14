@@ -69,6 +69,11 @@
           "type": "string",
           "const": "rawGitRepoName",
           "description": "owner_repo from the git remote, slashes replaced. Human-readable, path-safe."
+        },
+        {
+          "type": "string",
+          "const": "rawProjectName",
+          "description": "Last segment of the absolute checkout path (the project directory name). No git lookup; falls back to hashDirectory if the path has no basename."
         }
       ]
     },

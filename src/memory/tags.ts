@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { basename } from "node:path";
 
 import { getConfig } from "@/config/loader";
 import type { SupermemoryConfig } from "@/config/schema";
@@ -141,6 +142,16 @@ export function getProjectTag(
       // rawGitRepoName: "owner/repo" -> "owner_repo" (avoid "/" in tags)
       const safe = repoName.replace(/\//g, "_");
       return `${prefix}_project_${safe}`;
+    }
+  }
+
+  // rawProjectName: use the last segment of the absolute directory path
+  // (the project directory name) verbatim. No git lookup. Falls through to
+  // hashDirectory below when the basename is empty (e.g. "/" or "").
+  if (strategy === "rawProjectName") {
+    const projectName = basename(directory.replace(/[/\\]+$/, ""));
+    if (projectName) {
+      return `${prefix}_project_${projectName}`;
     }
   }
 

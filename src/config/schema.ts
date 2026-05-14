@@ -48,6 +48,11 @@ export const SupermemoryConfigSchema = z.object({
         .literal("hashGitRepoName")
         .describe("sha256 of owner/repo parsed from the git remote (default). Stable across clones and machines."),
       z.literal("rawGitRepoName").describe("owner_repo from the git remote, slashes replaced. Human-readable, path-safe."),
+      z
+        .literal("rawProjectName")
+        .describe(
+          "Last segment of the absolute checkout path (the project directory name). No git lookup; falls back to hashDirectory if the path has no basename.",
+        ),
     ])
     .catch(DEFAULTS.projectTagStrategy)
     .describe("Strategy for generating the project container tag when projectContainerTag is not set"),

@@ -319,11 +319,12 @@ Set `userContainerTag` / `projectContainerTag` to use an exact string instead of
 
 When `projectContainerTag` is **not** set, the project tag follows `projectTagStrategy`:
 
-| Strategy           | Output                                                | Notes                                                          |
-| ------------------ | ----------------------------------------------------- | -------------------------------------------------------------- |
-| `hashGitRepoName`  | `{prefix}_project_{sha256(owner/repo)}`               | **Default.** Stable across clones / machines for the same repo |
-| `rawGitRepoName`   | `{prefix}_project_{owner.repo}`                       | Human-readable; `/` becomes `_` to keep the tag path-safe      |
-| `hashDirectory`    | `{prefix}_project_{sha256(absolute_directory_path)}`  | Pre-existing behavior; tag changes if you move the checkout    |
+| Strategy           | Output                                                | Notes                                                                  |
+| ------------------ | ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| `hashGitRepoName`  | `{prefix}_project_{sha256(owner/repo)}`               | **Default.** Stable across clones / machines for the same repo         |
+| `rawGitRepoName`   | `{prefix}_project_{owner_repo}`                       | Human-readable; `/` becomes `_` to keep the tag path-safe              |
+| `rawProjectName`   | `{prefix}_project_{basename(directory)}`              | Human-readable; uses the project directory name; no git lookup         |
+| `hashDirectory`    | `{prefix}_project_{sha256(absolute_directory_path)}`  | Pre-existing behavior; tag changes if you move the checkout            |
 
 Both git-backed strategies read `git config --get remote.origin.url` from the project directory and **fall back to `hashDirectory`** when:
 
@@ -338,7 +339,10 @@ Example (remote `https://github.com/TheOrdinaryWow/abc`, prefix `my-prefix-`):
 // → my-prefix-_project_{sha256("TheOrdinaryWow/abc")}
 
 { "containerTagPrefix": "my-prefix-", "projectTagStrategy": "rawGitRepoName" }
-// → my-prefix-_project_TheOrdinaryWow.abc
+// → my-prefix-_project_TheOrdinaryWow_abc
+
+{ "containerTagPrefix": "my-prefix-", "projectTagStrategy": "rawProjectName" }
+// (in /Users/alice/code/abc) → my-prefix-_project_abc
 ```
 
 ## Usage with Oh My OpenAgent
