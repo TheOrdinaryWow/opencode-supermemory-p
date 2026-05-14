@@ -42,7 +42,13 @@ export const SupermemoryConfigSchema = z.object({
     .catch(DEFAULTS.containerTagPrefix)
     .describe("Prefix for auto-generated container tags (used when userContainerTag/projectContainerTag are not set)"),
   projectTagStrategy: z
-    .enum(["hashDirectory", "hashGitRepoName", "rawGitRepoName"])
+    .union([
+      z.literal("hashDirectory").describe("sha256 of the absolute checkout path. Tag changes if the directory moves."),
+      z
+        .literal("hashGitRepoName")
+        .describe("sha256 of owner/repo parsed from the git remote (default). Stable across clones and machines."),
+      z.literal("rawGitRepoName").describe("owner_repo from the git remote, slashes replaced. Human-readable, path-safe."),
+    ])
     .catch(DEFAULTS.projectTagStrategy)
     .describe("Strategy for generating the project container tag when projectContainerTag is not set"),
   userContainerTag: z.string().optional().describe("Optional explicit user container tag (overrides auto-generated tag)"),

@@ -54,11 +54,22 @@
     "projectTagStrategy": {
       "default": "hashGitRepoName",
       "description": "Strategy for generating the project container tag when projectContainerTag is not set",
-      "type": "string",
-      "enum": [
-        "hashDirectory",
-        "hashGitRepoName",
-        "rawGitRepoName"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "hashDirectory",
+          "description": "sha256 of the absolute checkout path. Tag changes if the directory moves."
+        },
+        {
+          "type": "string",
+          "const": "hashGitRepoName",
+          "description": "sha256 of owner/repo parsed from the git remote (default). Stable across clones and machines."
+        },
+        {
+          "type": "string",
+          "const": "rawGitRepoName",
+          "description": "owner_repo from the git remote, slashes replaced. Human-readable, path-safe."
+        }
       ]
     },
     "userContainerTag": {
