@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0](https://github.com/TheOrdinaryWow/opencode-supermemory-p/compare/v1.2.0...v1.3.0) (2026-05-14)
+
+
+### Features
+
+* **config:** add rawProjectName project tag strategy ([eb39f6b](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/eb39f6b26d5017adb14301fef871a710f3a30b56))
+* disable plugin when .supermemoryignore is present ([108393f](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/108393f676dd7b8ae59bd873b28003ef2dc04900))
+* show startup toast when .supermemoryignore disables plugin ([da0cf11](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/da0cf118ab3d113b3ff0eb74851e3ae4a473009b))
+
 ## [1.2.0](https://github.com/TheOrdinaryWow/opencode-supermemory-p/compare/v1.1.0...v1.2.0) (2026-05-14)
 
 
