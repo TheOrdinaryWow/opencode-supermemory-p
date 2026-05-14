@@ -458,7 +458,7 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 }
 ```
 
-Messages containing plugin or orchestrator scaffolding (slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, etc.) are skipped entirely from the capture stream. Memories ingested with this plugin enabled will not contain other plugins' markers, so no manual cleanup is needed for new sessions. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
+When a captured message contains plugin or orchestrator scaffolding (slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, F-task briefs, etc.), those marker shapes are stripped before the message enters memory; whatever real user content surrounded them is preserved. Messages that are 100% scaffolding leave nothing behind and are not captured at all. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
 
 ## Development
 
@@ -488,7 +488,7 @@ tail -f ~/.local/share/opencode-supermemory-p/log/main.log
 
 ### Purge legacy plugin-injected memories
 
-Memories captured by earlier versions of this plugin may contain content injected by other plugins (slash-command expansions, system reminders, etc.). The `purge-injected` script scans the Supermemory backend and removes them.
+Memories captured by earlier versions of this plugin may contain content injected by other plugins (slash-command expansions, system reminders, `<Work_Context>` blocks, mode indicators, etc.). The `purge-injected` script scans the Supermemory backend and removes any memory whose stored text still matches a known scaffolding pattern.
 
 Dry-run (default — lists matches without deleting):
 
