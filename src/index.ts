@@ -19,6 +19,9 @@ import { createSessionState } from "@/session/state";
 import { initLogger, rootLogger } from "@/shared/logger";
 import { extractSignalContent, type Message, type MessagePart } from "@/signal/extract";
 import { createSupermemoryTool } from "@/tool/index";
+import { createIgnoredToastEmitter } from "@/ui/ignored-toast";
+
+import pkg from "../package.json" with { type: "json" };
 
 const DEDUP_DATA_DIR = join(homedir(), ".local", "share", "opencode-supermemory-p");
 
@@ -34,36 +37,40 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
   return {
     "chat.message": (input, output) => handleChatMessage(input, output, deps),
     tool: { supermemory: createSupermemoryTool({ tags: deps.tags, client: supermemoryClient }) },
-    event: (input: { event: { type: string; properties?: unknown } }) =>
-      deps.isConfigured()
-        ? handleEvent(input, {
-            compactionHook,
-            config: deps.config,
-            incrementalCapture: {
+    event: async (input: { event: { type: string; properties?: unknown } }) => {
+      if (deps.ignored) {
+        await deps.showIgnoredToast();
+        return;
+      }
+      if (!deps.isConfigured()) return;
+      return handleEvent(input, {
+        compactionHook,
+        config: deps.config,
+        incrementalCapture: {
+          config: deps.config,
+          client: deps.resultClient,
+          tracker,
+          signalExtract: extractSignalContent,
+          dataDir: ctx.directory,
+        },
+        sessionEnd: ctx.client
+          ? {
               config: deps.config,
               client: deps.resultClient,
+              sdkClient: {
+                session: {
+                  messages: ({ sessionId }) =>
+                    ctx.client.session.messages({ path: { id: sessionId }, query: { directory: ctx.directory } }),
+                },
+              },
               tracker,
               signalExtract: extractSignalContent,
               dataDir: ctx.directory,
-            },
-            sessionEnd: ctx.client
-              ? {
-                  config: deps.config,
-                  client: deps.resultClient,
-                  sdkClient: {
-                    session: {
-                      messages: ({ sessionId }) =>
-                        ctx.client.session.messages({ path: { id: sessionId }, query: { directory: ctx.directory } }),
-                    },
-                  },
-                  tracker,
-                  signalExtract: extractSignalContent,
-                  dataDir: ctx.directory,
-                  projectTag: deps.tags.project,
-                }
-              : undefined,
-          })
-        : Promise.resolve(),
+              projectTag: deps.tags.project,
+            }
+          : undefined,
+      });
+    },
     "experimental.session.compacting": (input, output) =>
       deps.isConfigured() && ctx.client
         ? handlePreCompactionSave(
@@ -110,7 +117,31 @@ function createDeps(ctx: PluginInput) {
   log("Plugin init", { directory: ctx.directory, tags, configured: isConfigured(), ignored });
   if (ignored) log("Plugin disabled - .supermemoryignore present in project directory");
   else if (!isConfigured()) log("Plugin disabled - SUPERMEMORY_API_KEY not set");
-  return { client, resultClient, config, tags, ignored, injectedSessions: sessionState, pendingReinjectSessions, log, isConfigured };
+  const showIgnoredToast = createIgnoredToastEmitter({
+    client: (
+      ctx.client as
+        | {
+            tui?: {
+              showToast: (params: { body: { title: string; message: string; variant: string; duration: number } }) => Promise<unknown>;
+            };
+          }
+        | undefined
+    )?.tui,
+    version: pkg.version,
+    log,
+  });
+  return {
+    client,
+    resultClient,
+    config,
+    tags,
+    ignored,
+    injectedSessions: sessionState,
+    pendingReinjectSessions,
+    log,
+    isConfigured,
+    showIgnoredToast,
+  };
 }
 
 function normalizeSdkMessages(response: {

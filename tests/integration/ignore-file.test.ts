@@ -10,19 +10,33 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..", "..");
 const DIST_INDEX = pathToFileURL(join(REPO_ROOT, "dist", "index.js")).href;
 
+interface ToastCall {
+  body: { title: string; message: string; variant: string; duration: number };
+}
+
 interface MockCtx {
   directory: string;
   client: {
     provider: { list: () => Promise<{ data: { all: never[] } }> };
+    tui: { showToast: (params: ToastCall) => Promise<{ ok: true }> };
   };
+  toasts: ToastCall[];
 }
 
 function createCtx(directory: string): MockCtx {
+  const toasts: ToastCall[] = [];
   return {
     directory,
+    toasts,
     client: {
       provider: {
         list: async () => ({ data: { all: [] } }),
+      },
+      tui: {
+        showToast: async (params: ToastCall) => {
+          toasts.push(params);
+          return { ok: true };
+        },
       },
     },
   };
@@ -132,5 +146,53 @@ describe("plugin disables itself when .supermemoryignore is present", () => {
     const plugin = (await mod.SupermemoryPlugin(createCtx(projectDir))) as Record<string, unknown>;
 
     expect(Object.keys(plugin).sort()).toEqual(["chat.message", "event", "experimental.session.compacting", "tool"].sort());
+  });
+
+  it("shows a disabled-by-ignore toast on the first event after init", async () => {
+    writeFileSync(join(projectDir, ".supermemoryignore"), "");
+
+    // package.json is the source of truth for the version baked into the toast title.
+    const pkg = JSON.parse((await import("node:fs")).readFileSync(join(REPO_ROOT, "package.json"), "utf-8")) as { version: string };
+
+    const mod = await importFreshPlugin("toast");
+    const ctx = createCtx(projectDir);
+    const plugin = (await mod.SupermemoryPlugin(ctx)) as Record<string, unknown>;
+    const eventHook = plugin.event as (input: unknown) => Promise<void>;
+
+    await eventHook({ event: { type: "session.idle", properties: {} } });
+
+    expect(ctx.toasts).toHaveLength(1);
+    expect(ctx.toasts[0]).toBeDefined();
+    const toast = ctx.toasts[0] as ToastCall;
+    expect(toast.body.title).toBe(`opencode-supermemory-p ${pkg.version}`);
+    expect(toast.body.message).toBe("Supermemory is disabled because .supermemoryignore file is present in the project.");
+  });
+
+  it("shows the ignore toast only once across multiple events", async () => {
+    writeFileSync(join(projectDir, ".supermemoryignore"), "");
+
+    const mod = await importFreshPlugin("toast-once");
+    const ctx = createCtx(projectDir);
+    const plugin = (await mod.SupermemoryPlugin(ctx)) as Record<string, unknown>;
+    const eventHook = plugin.event as (input: unknown) => Promise<void>;
+
+    await eventHook({ event: { type: "session.idle", properties: {} } });
+    await eventHook({ event: { type: "session.updated", properties: { sessionID: "ses_x" } } });
+    await eventHook({ event: { type: "session.idle", properties: {} } });
+
+    expect(ctx.toasts).toHaveLength(1);
+  });
+
+  it("does NOT show the ignore toast when .supermemoryignore is absent", async () => {
+    delete process.env.SUPERMEMORY_API_KEY;
+
+    const mod = await importFreshPlugin("no-toast");
+    const ctx = createCtx(projectDir);
+    const plugin = (await mod.SupermemoryPlugin(ctx)) as Record<string, unknown>;
+    const eventHook = plugin.event as (input: unknown) => Promise<void>;
+
+    await eventHook({ event: { type: "session.idle", properties: {} } });
+
+    expect(ctx.toasts).toHaveLength(0);
   });
 });
