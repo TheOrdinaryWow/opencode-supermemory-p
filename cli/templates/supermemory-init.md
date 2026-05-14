@@ -1,5 +1,6 @@
 ---
 description: Initialize Supermemory with comprehensive codebase knowledge
+subtask: false
 ---
 
 # Initializing Supermemory

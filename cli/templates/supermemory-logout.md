@@ -1,5 +1,6 @@
 ---
 description: Log out from Supermemory and clear credentials
+subtask: false
 ---
 
 # Supermemory Logout

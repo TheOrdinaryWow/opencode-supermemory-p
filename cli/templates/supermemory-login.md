@@ -1,5 +1,6 @@
 ---
 description: Authenticate with Supermemory via browser
+subtask: false
 ---
 
 # Supermemory Login
