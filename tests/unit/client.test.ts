@@ -13,16 +13,16 @@ import type { AppError } from "@/shared/errors";
 // We avoid the HTTP layer entirely by mocking the `supermemory` module
 // itself via `mock.module`. The mock exposes a class whose method
 // surface matches the SDK shape consumed by client.ts:
-//   - client.search.memories(opts)   →   { results, total, timing, ... }
-//   - client.profile(opts)           →   { profile, ... }
-//   - client.memories.add(opts)      →   { id, ... }
-//   - client.memories.delete(id)     →   any
-//   - client.memories.list(opts)     →   { memories, pagination, ... }
-//   - client.settings.update(opts)   →   any (fire-and-forget)
+//   - client.add(opts)                  →   { id, status, ... }   (top-level)
+//   - client.profile(opts)              →   { profile, ... }      (top-level)
+//   - client.search.memories(opts)      →   { results, total, timing, ... }
+//   - client.memories.forget(opts)      →   { id, forgotten }
+//   - client.documents.list(opts)       →   { memories, pagination, ... }
+//   - client.settings.update(opts)      →   any (fire-and-forget)
 //
 // `formatConversationMessage` / `formatConversationTranscript` are
 // private — they're observed indirectly via the `content` argument
-// passed to `memories.add` from inside `ingestConversation`.
+// passed to `client.add` from inside `ingestConversation`.
 // =====================================================================
 
 // Mutable per-test SDK behavior. Tests assign onto this before calling
@@ -34,7 +34,7 @@ const sdkState: {
   searchMemories: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
   profile: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
   addMemory: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
-  deleteMemory: { calls: SdkCall[]; impl?: (id: string) => unknown };
+  deleteMemory: { calls: SdkCall[]; impl?: (body: unknown) => unknown };
   listMemories: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
   settingsUpdate: { calls: SdkCall[]; impl?: (opts: unknown) => unknown };
 } = {
@@ -70,6 +70,11 @@ mock.module("@/shared/timeout", () => ({
 mock.module("supermemory", () => {
   return {
     default: class MockSupermemory {
+      add = async (opts: unknown) => {
+        sdkState.addMemory.calls.push({ args: [opts] });
+        const impl = sdkState.addMemory.impl ?? (() => ({ id: "mem_default" }));
+        return impl(opts);
+      };
       search = {
         memories: async (opts: unknown) => {
           sdkState.searchMemories.calls.push({ args: [opts] });
@@ -83,16 +88,13 @@ mock.module("supermemory", () => {
         return impl(opts);
       };
       memories = {
-        add: async (opts: unknown) => {
-          sdkState.addMemory.calls.push({ args: [opts] });
-          const impl = sdkState.addMemory.impl ?? (() => ({ id: "mem_default" }));
-          return impl(opts);
+        forget: async (body: unknown) => {
+          sdkState.deleteMemory.calls.push({ args: [body] });
+          const impl = sdkState.deleteMemory.impl ?? (() => ({ id: "mem_forgotten", forgotten: true }));
+          return impl(body);
         },
-        delete: async (id: string) => {
-          sdkState.deleteMemory.calls.push({ args: [id] });
-          const impl = sdkState.deleteMemory.impl ?? (() => undefined);
-          return impl(id);
-        },
+      };
+      documents = {
         list: async (opts: unknown) => {
           sdkState.listMemories.calls.push({ args: [opts] });
           const impl =
@@ -335,12 +337,15 @@ describe("SupermemoryClient.addMemory", () => {
 
 describe("SupermemoryClient.deleteMemory", () => {
   it("success: returns { success: true } (no spread of SDK result — distinct shape)", async () => {
-    sdkState.deleteMemory.impl = () => ({ acknowledged: true });
+    sdkState.deleteMemory.impl = () => ({ id: "mem_abc", forgotten: true });
     const client = new SupermemoryClient();
-    const out = await client.deleteMemory("mem_abc");
+    const out = await client.deleteMemory("mem_abc", "tag_p");
 
+    // Note: this method is the ONLY one that drops the `as const`
+    // narrow on success. The result type is plain `{success: boolean}`
+    // here. Pinned so the T15 unification surfaces it.
     expect(out).toEqual({ ok: true, value: { success: true } });
-    expect(sdkState.deleteMemory.calls[0]?.args[0]).toBe("mem_abc");
+    expect(sdkState.deleteMemory.calls[0]?.args[0]).toEqual({ containerTag: "tag_p", id: "mem_abc" });
   });
 
   it("error: SDK throw → returns { success: false, error }", async () => {
@@ -348,7 +353,7 @@ describe("SupermemoryClient.deleteMemory", () => {
       throw new Error("not found");
     };
     const client = new SupermemoryClient();
-    const out = await client.deleteMemory("mem_abc");
+    const out = await client.deleteMemory("mem_abc", "tag_p");
 
     expect(out.ok).toBe(false);
     if (out.ok) throw new Error("expected error result");

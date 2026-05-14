@@ -52,9 +52,9 @@ async function withResult<T>(label: string, fn: () => Promise<T>): Promise<Resul
 
 export type SearchMemoriesResult = Awaited<ReturnType<Supermemory["search"]["memories"]>> & { success: true };
 export type ProfileResult = Awaited<ReturnType<Supermemory["profile"]>> & { success: true };
-export type AddMemoryResult = Partial<Awaited<ReturnType<Supermemory["memories"]["add"]>>> & { success: true; id?: string; deduped?: true };
+export type AddMemoryResult = Partial<Awaited<ReturnType<Supermemory["add"]>>> & { success: true; id?: string; deduped?: true };
 export type DeleteMemoryResult = { success: true };
-export type ListMemoriesResult = Awaited<ReturnType<Supermemory["memories"]["list"]>> & { success: true };
+export type ListMemoriesResult = Awaited<ReturnType<Supermemory["documents"]["list"]>> & { success: true };
 export type IngestConversationResult = ConversationIngestResponse & { success: true; storedMemoryIds: string[] };
 
 type AddMemoryMetadata = { type?: MemoryType; tool?: string; source?: MemorySource; [key: string]: unknown };
@@ -186,7 +186,7 @@ export class SupermemoryClient {
         entityContext: clampEntityContext(config.entityContext),
       };
       const result = await withTimeout(
-        this.getClient().memories.add({
+        this.getClient().add({
           content,
           containerTag,
           metadata: metadataWithContext as Record<string, string | number | boolean | string[]>,
@@ -202,10 +202,10 @@ export class SupermemoryClient {
     });
   }
 
-  async deleteMemory(memoryId: string): Promise<Result<DeleteMemoryResult, AppError>> {
-    logger.info("deleteMemory: start", { memoryId });
+  async deleteMemory(memoryId: string, containerTag: string): Promise<Result<DeleteMemoryResult, AppError>> {
+    logger.info("deleteMemory: start", { memoryId, containerTag });
     return withResult("deleteMemory", async () => {
-      await withTimeout(this.getClient().memories.delete(memoryId), TIMEOUT_MS, "supermemory.deleteMemory");
+      await withTimeout(this.getClient().memories.forget({ containerTag, id: memoryId }), TIMEOUT_MS, "supermemory.deleteMemory");
       logger.info("deleteMemory: success", { memoryId });
       return { success: true };
     });
@@ -215,7 +215,7 @@ export class SupermemoryClient {
     logger.info("listMemories: start", { containerTag, limit });
     return withResult("listMemories", async () => {
       const result = await withTimeout(
-        this.getClient().memories.list({
+        this.getClient().documents.list({
           containerTags: [containerTag],
           limit,
           order: "desc",
@@ -345,8 +345,8 @@ export const supermemoryClient = {
       error: "Failed to add memory",
     });
   },
-  async deleteMemory(memoryId: string) {
-    return unwrapOrLegacyShape(await resultSupermemoryClient.deleteMemory(memoryId), {
+  async deleteMemory(memoryId: string, containerTag: string) {
+    return unwrapOrLegacyShape(await resultSupermemoryClient.deleteMemory(memoryId, containerTag), {
       success: false as const,
       error: "Failed to delete memory",
     });

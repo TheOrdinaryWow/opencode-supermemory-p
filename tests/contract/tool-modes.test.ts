@@ -51,11 +51,14 @@ const LOGGER_ABS = join(REPO_ROOT, "src", "shared", "logger.ts");
 // ---------------------------------------------------------------------
 mock.module("supermemory", () => ({
   default: class MockSupermemorySDK {
-    search = { memories: async () => ({ results: [], total: 0, timing: 0 }) };
+    add = async () => ({ id: "sdk_unused", status: "queued" });
     profile = async () => ({ profile: null });
+    search = { memories: async () => ({ results: [], total: 0, timing: 0 }) };
     memories = {
-      add: async () => ({ id: "sdk_unused" }),
-      delete: async () => undefined,
+      forget: async () => ({ id: "sdk_unused", forgotten: true }),
+      updateMemory: async () => undefined,
+    };
+    documents = {
       list: async () => ({ memories: [], pagination: { currentPage: 1, totalItems: 0, totalPages: 0 } }),
     };
     settings = {
@@ -110,7 +113,7 @@ const clientImpl: {
   searchMemories: (query: string, tag: string) => unknown;
   getProfile: (tag: string, query?: string) => unknown;
   listMemories: (tag: string, limit?: number) => unknown;
-  deleteMemory: (id: string) => unknown;
+  deleteMemory: (id: string, tag?: string) => unknown;
 } = {
   addMemory: () => ({ success: true, id: "mem_default" }),
   searchMemories: () => ({ success: true, results: [], total: 0, timing: 0 }),
@@ -181,9 +184,9 @@ beforeAll(async () => {
     configurable: true,
   });
   Object.defineProperty(singleton, "deleteMemory", {
-    value: async (id: string) => {
-      clientCalls.deleteMemory.push({ args: [id] });
-      return clientImpl.deleteMemory(id);
+    value: async (id: string, tag: string) => {
+      clientCalls.deleteMemory.push({ args: [id, tag] });
+      return clientImpl.deleteMemory(id, tag);
     },
     writable: true,
     configurable: true,
@@ -255,10 +258,15 @@ async function callTool(args: Record<string, unknown>): Promise<unknown> {
     sessionID: "ses_test",
     messageID: "msg_test",
     agent: "test",
+    directory: "/test/project",
+    worktree: "/test/project",
     abort: new AbortController().signal,
-  };
+    metadata: () => undefined,
+    ask: () => undefined,
+  } as unknown as Parameters<typeof toolDef.execute>[1];
   // biome-ignore lint/suspicious/noExplicitAny: cross-zod-version arg typing
-  const raw = await toolDef.execute(args as any, ctx);
+  const result = await toolDef.execute(args as any, ctx);
+  const raw = typeof result === "string" ? result : result.output;
   return JSON.parse(raw);
 }
 
@@ -587,7 +595,7 @@ describe("tool.execute mode=forget", () => {
       message: "Memory mem_xyz removed from user scope",
     });
     expect(clientCalls.deleteMemory).toHaveLength(1);
-    expect(clientCalls.deleteMemory[0]?.args).toEqual(["mem_xyz"]);
+    expect(clientCalls.deleteMemory[0]?.args).toEqual(["mem_xyz", MOCK_USER_TAG]);
   });
 
   it("default scope: when scope is omitted, envelope reports 'project' as the scope removed-from", async () => {

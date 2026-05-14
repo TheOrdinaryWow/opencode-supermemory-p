@@ -9,8 +9,9 @@ export async function executeForget(args: ToolArgs, deps: ToolDeps): Promise<str
   }
 
   const scope = args.scope || "project";
+  const containerTag = scope === "user" ? deps.tags.user : deps.tags.project;
 
-  const result = await deps.client.deleteMemory(args.memoryId);
+  const result = await deps.client.deleteMemory(args.memoryId, containerTag);
 
   if (!result.success) {
     return JSON.stringify({

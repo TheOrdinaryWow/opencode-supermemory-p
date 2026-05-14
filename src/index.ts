@@ -134,8 +134,8 @@ function createLegacyClient(client: SupermemoryClient) {
       const result = await client.addMemory(content, containerTag, metadata);
       return result.ok ? result.value : { success: false as const, error: result.error.message };
     },
-    async deleteMemory(memoryId: string) {
-      const result = await client.deleteMemory(memoryId);
+    async deleteMemory(memoryId: string, containerTag: string) {
+      const result = await client.deleteMemory(memoryId, containerTag);
       return result.ok ? result.value : { success: false as const, error: result.error.message };
     },
     async listMemories(containerTag: string, limit = 20) {
