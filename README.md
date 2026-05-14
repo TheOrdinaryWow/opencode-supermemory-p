@@ -11,8 +11,7 @@ Your agent remembers what you tell it — across sessions, across projects.
 - [Tool Usage](#tool-usage)
 - [Memory Scoping](#memory-scoping)
 - [Configuration](#configuration)
-- [Container Tag Selection](#container-tag-selection)
-- [Project Tag Strategy](#project-tag-strategy)
+- [Container Tags](#container-tags)
 - [Usage with Oh My OpenAgent](#usage-with-oh-my-openagent)
 - [Development](#development)
 - [Logs](#logs)
@@ -28,13 +27,13 @@ Your agent remembers what you tell it — across sessions, across projects.
 bunx opencode-supermemory-p@latest install
 ```
 
-Then get your API key from [app.supermemory.ai](https://app.supermemory.ai/?view=integrations) and set it:
+Then get your API key from [app.supermemory.ai](https://app.supermemory.ai/?view=integrations) and export it:
 
 ```bash
 export SUPERMEMORY_API_KEY="sm_..."
 ```
 
-**Or let your agent do it** - paste this into OpenCode:
+**Or let your agent do it** — paste this into OpenCode:
 
 ```
 Install opencode-supermemory-p by following https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/README.md
@@ -42,100 +41,27 @@ Install opencode-supermemory-p by following https://raw.githubusercontent.com/Th
 
 ### For LLM Agents
 
-<details>
-<summary>Instructions for LLM Agents (click to expand)</summary>
-
-If you're an LLM agent helping set up opencode-supermemory-p, follow these steps:
-
-#### Step 1: Run the installer
+Non-interactive install (registers the plugin in `~/.config/opencode/opencode.jsonc` and creates `/supermemory-init`):
 
 ```bash
 bunx opencode-supermemory-p@latest install --no-tui
 ```
 
-This will:
+API key resolution (highest priority first):
 
-- Register the plugin in `~/.config/opencode/opencode.jsonc`
-- Create the `/supermemory-init` command
+1. `SUPERMEMORY_API_KEY` env var.
+2. `apiKey` field in `~/.config/opencode/supermemory-p.{jsonc,json}`.
+3. OAuth credentials — run `bunx opencode-supermemory-p@latest login`.
 
-#### Step 2: Verify the config
+**Verify**: restart OpenCode, run `opencode -c`, look for `supermemory` in the tools list. If missing, check `tail ~/.local/share/opencode-supermemory-p/log/main.log`.
 
-```bash
-cat ~/.config/opencode/opencode.jsonc
-```
-
-Should contain:
-
-```json
-{
-  "plugin": ["opencode-supermemory-p"]
-}
-```
-
-If not, add it manually:
-
-**JSONC:**
-
-```jsonc
-{
-  "plugin": [
-    "opencode-supermemory-p",
-    // ... other plugins
-  ],
-}
-```
-
-**JSON:**
-
-```json
-{
-  "plugin": ["opencode-supermemory-p"]
-}
-```
-
-#### Step 3: Configure API key
-
-Ask the user to get their API key from [app.supermemory.ai](https://app.supermemory.ai/?view=integrations).
-
-Then set it via environment variable:
-
-```bash
-export SUPERMEMORY_API_KEY="sm_..."
-```
-
-Or create `~/.config/opencode/supermemory-p.jsonc`:
-
-```jsonc
-{
-  "apiKey": "sm_...",
-}
-```
-
-#### Step 4: Verify setup
-
-Tell the user to restart OpenCode and run:
-
-```bash
-opencode -c
-```
-
-They should see `supermemory` in the tools list. If not, check:
-
-1. Is `SUPERMEMORY_API_KEY` set?
-2. Is the plugin in `opencode.jsonc`?
-3. Check logs: `tail ~/.local/share/opencode-supermemory-p/log/main.log`
-
-#### Step 5: Initialize codebase memory (optional)
-
-Run `/supermemory-init` to have the agent explore and memorize the codebase.
-
-</details>
+**Initialize codebase memory** (optional): run `/supermemory-init` to have the agent explore and memorize the codebase.
 
 ## Features
 
 ### Context Injection
 
-On first message, the agent receives (invisible to user):
+On the first message of every session, the agent silently receives:
 
 - User profile (cross-project preferences)
 - Project memories (all project knowledge)
@@ -158,18 +84,18 @@ Relevant Memories:
 - [82%] Build fails if .env.local missing
 ```
 
-The agent uses this context automatically - no manual prompting needed.
+No manual prompting needed.
 
 ### Keyword Detection
 
-Say "remember", "save this", "don't forget" etc. and the agent auto-saves to memory.
+Phrases like "remember", "save this", "don't forget" trigger an automatic memory save:
 
 ```
 You: "Remember that this project uses bun"
 Agent: [saves to project memory]
 ```
 
-Add custom triggers via `keywordPatterns` config.
+Add custom triggers via `keywordPatterns`.
 
 ### Codebase Indexing
 
@@ -177,81 +103,62 @@ Run `/supermemory-init` to explore and memorize your codebase structure, pattern
 
 ### Preemptive Compaction
 
-When context hits 80% capacity:
+When context hits `compactionThreshold` (default `0.8`):
 
-1. Triggers OpenCode's summarization
-2. Injects project memories into summary context
-3. Saves session summary as a memory
+1. Triggers OpenCode's summarization.
+2. Injects project memories into the summary context.
+3. Saves the session summary as a memory.
 
-This preserves conversation context across compaction events.
+Conversation context survives the compaction event.
 
 ### Privacy
+
+Content inside `<private>` tags is **never** stored:
 
 ```
 API key is <private>sk-abc123</private>
 ```
 
-Content in `<private>` tags is never stored.
+Plugin / orchestrator scaffolding is also stripped at capture time — slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, F-task briefs, and similar marker shapes. Whatever real user content surrounded them is preserved; messages that are 100% scaffolding leave nothing behind. To clean memories captured before this filter existed, see [Maintenance](#maintenance).
 
-### Incremental Capture
+### Capture, recall, and display knobs
 
-Assistant turns can be saved as they finish, which keeps long sessions from losing useful context. The capture limit is controlled by `maxCaptureChars`, so very large turns stay bounded.
+Each row is one entry in `~/.config/opencode/supermemory-p.jsonc`. See [Configuration](#configuration) for the full schema.
 
-### Every-Message Recall
+**Capture & retention**
 
-This option runs memory search on every user message and re-injects the best matches when they matter. It is off by default because it adds retrieval cost on every turn.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `incrementalCapture` | `true` | Save assistant turns progressively as they finish |
+| `maxCaptureChars` | `5000` | Per-turn capture size cap |
+| `signalExtraction` | `true` | Heuristic keyword filter — keeps only turns that look worth saving |
+| `signalKeywords` | preset list | Trigger phrases for the heuristic filter |
+| `signalTurnsBefore` | `3` | Include this many turns before a matching turn |
+| `sessionEndSave` | `true` | Final snapshot when the session ends or idles |
+| `dedupEnabled` | `true` | Skip duplicate saves by normalized content hash |
+| `dedupCacheSize` | `500` | Max entries in the dedup cache |
 
-### Signal Extraction
+**Recall & injection**
 
-The plugin can watch for signal keywords and keep only the turns that look worth preserving. It stays heuristic-only, so no extra LLM call is needed for capture decisions.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `everyMessageRecall` | `false` | Run a recall search on every user message (extra API cost) |
+| `recallKeywordPatterns` | preset list | Phrases that trigger an explicit recall search |
+| `reinjectEveryN` | `0` | Re-inject memory every N completed turns (`0` disables) |
+| `postCompactionReinject` | `true` | Re-inject memory after context compaction |
+| `profileCrossArrayDedup` | `true` | Dedup profile facts across profile / project / relevant arrays |
 
-### Content Dedup
+**Display & metadata**
 
-Duplicate memories are skipped by content hash so the same fact does not get stored over and over. The cache is bounded and only stores hashes, which keeps the disk footprint small.
+| Option | Default | What it does |
+| --- | --- | --- |
+| `metadataStripping` | `true` | Strip injected timestamps / tags from search queries (`<private>` preserved) |
+| `relativeTimeDisplay` | `true` | Render timestamps as `2 hrs ago` instead of ISO strings |
+| `memoUsageFooter` | `true` | Append a compact memory-count footer to injected context |
+| `entityContext` | preset string | Short hint passed to the entity-extraction pipeline |
+| `autoCategoryTagging` | `false` | Classify memories into `preference` / `decision` / etc. before storing |
 
-### Metadata Stripping
-
-Injected timestamps, tags, and other wrapper metadata are removed before search. Private tags remain untouched, so the plugin still respects explicit private boundaries.
-
-### Relative Time Display
-
-Memory timestamps can render as relative text such as `2 hrs ago` instead of raw ISO strings. That keeps the injected context easier to scan during active sessions.
-
-### Entity Context
-
-Entity guidance gives memory extraction a short, focused hint about the current subject. It helps the plugin keep person, project, and product references consistent without adding extra API calls.
-
-### Auto-Category Tagging
-
-Memories can be classified into categories such as preference, decision, fact, or other. The feature is off by default so categorization only happens when you opt in.
-
-### Memo Usage Footer
-
-A compact footer can show how many memories were injected into the current context. That makes it easier to see when memory usage is high without opening logs.
-
-### Profile Cross-Array Dedup
-
-Profile facts can be deduped across the profile, project, and relevant-memory arrays before injection. That keeps repeated facts from crowding out fresher context.
-
-### Recall Keywords
-
-Extra recall phrases can trigger a search even when the message does not look like a normal memory request. This is useful for project-specific prompts that should always pull context back in.
-
-### Periodic Re-Injection
-
-The plugin can re-inject memory every N completed turns to keep long chats anchored. Set the interval to `0` to disable the cadence entirely.
-
-### Session-End Save
-
-When a session idles or ends, the plugin can write a final memory snapshot. That gives the conversation one last save point even if earlier capture was missed.
-
-### Pre-Compaction Save
-
-Before OpenCode compacts the conversation, the plugin can preserve the current state in full. This keeps the memory timeline intact before summarization trims the active context.
-
-### Post-Compaction Re-Injection
-
-After compaction, the plugin can queue the session for a fresh memory pull on the next chat turn. That restores useful context after the summary pass finishes.
+Three options are off by default because they add API cost: `everyMessageRecall`, `reinjectEveryN`, `autoCategoryTagging`.
 
 ## Tool Usage
 
@@ -265,9 +172,9 @@ The `supermemory` tool is available to the agent:
 | `list`    | `scope?`, `limit?`           | List memories     |
 | `forget`  | `memoryId`, `scope?`         | Delete memory     |
 
-**Scopes:** `user` (cross-project), `project` (default)
+**Scopes:** `user` (cross-project), `project` (default).
 
-**Types:** `project-config`, `architecture`, `error-solution`, `preference`, `learned-pattern`, `conversation`
+**Types:** `project-config`, `architecture`, `error-solution`, `preference`, `learned-pattern`, `conversation`.
 
 ## Memory Scoping
 
@@ -276,22 +183,26 @@ The `supermemory` tool is available to the agent:
 | User    | `opencode_user_{sha256(git_email)}`          | All projects |
 | Project | `opencode_project_{sha256(owner/repo)}`      | This project |
 
-The project tag formula is configurable via [`projectTagStrategy`](#project-tag-strategy).
+The project tag formula is configurable — see [Container Tags](#container-tags).
 
 ## Configuration
 
-### Migration Notes (v2)
+Config lives in `~/.config/opencode/supermemory-p.jsonc`. All fields are optional and use safe defaults on missing / invalid values. `SUPERMEMORY_API_KEY` env var takes precedence over the file.
 
-All new features default to safe behavior (zero additional API cost). Three options require explicit opt-in: `everyMessageRecall`, `reinjectEveryN`, and `autoCategoryTagging`.
-
-Create `~/.config/opencode/supermemory-p.jsonc`:
+Use the published JSON Schema for editor completion and validation:
 
 ```jsonc
 {
-  // Editor completion & validation (optional)
   "$schema": "https://raw.githubusercontent.com/TheOrdinaryWow/opencode-supermemory-p/refs/heads/main/assets/config.schema.json",
+  // ...
+}
+```
 
-  // API key (can also use SUPERMEMORY_API_KEY env var)
+### Core knobs
+
+```jsonc
+{
+  // API key (env var SUPERMEMORY_API_KEY takes precedence)
   "apiKey": "sm_...",
 
   // Min similarity for memory retrieval (0-1)
@@ -309,17 +220,11 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
   // Include user profile in context
   "injectProfile": true,
 
-  // Prefix for container tags (used when userContainerTag/projectContainerTag not set)
+  // Container tag generation — see "Container Tags" below
   "containerTagPrefix": "opencode",
-
-  // Optional: Set exact user container tag (overrides auto-generated tag)
-  "userContainerTag": "my-custom-user-tag",
-
-  // Optional: Set exact project container tag (overrides auto-generated tag)
-  "projectContainerTag": "my-project-tag",
-
-  // Project tag generation strategy: "hashDirectory" | "hashGitRepoName" | "rawGitRepoName"
   "projectTagStrategy": "hashGitRepoName",
+  "userContainerTag": "my-custom-user-tag",      // optional override
+  "projectContainerTag": "my-project-tag",       // optional override
 
   // System prompt used as the memory-ingestion filter directive
   "filterPrompt": "You are a stateful coding agent. Remember user's coding preferences, tech stack, and workflows.",
@@ -329,94 +234,77 @@ Create `~/.config/opencode/supermemory-p.jsonc`:
 
   // Context usage ratio that triggers compaction (0-1)
   "compactionThreshold": 0.8,
-
-  // Save assistant turns progressively as they finish
-  "incrementalCapture": true,
-
-  // Maximum characters kept from any captured turn
-  "maxCaptureChars": 5000,
-
-  // Run recall search on every message (costly; default off)
-  "everyMessageRecall": false,
-
-  // Re-inject memory every N completed turns (0 disables it)
-  "reinjectEveryN": 0,
-
-  // Re-inject memory after context compaction
-  "postCompactionReinject": true,
-
-  // Save a final snapshot when the session ends or idles
-  "sessionEndSave": true,
-
-  // Keep only turns that match signal keywords
-  "signalExtraction": true,
-
-  // Keywords that trigger capture for high-signal turns
-  "signalKeywords": ["remember", "save this", "important"],
-
-  // Include this many earlier turns before a signal turn
-  "signalTurnsBefore": 3,
-
-  // Extra recall phrases that trigger a memory search
-  "recallKeywordPatterns": ["bring that back", "look that up"],
-
-  // Skip duplicate memory saves by normalized content hash
-  "dedupEnabled": true,
-
-  // Maximum number of entries kept in the dedup cache
-  "dedupCacheSize": 500,
-
-  // Short guidance for entity extraction during capture
-  "entityContext": "Focus on people, projects, tools, and decisions that matter to this repository.",
-
-  // Strip injected metadata from memory search queries
-  "metadataStripping": true,
-
-  // Show relative timestamps like '2 hrs ago' in memory context
-  "relativeTimeDisplay": true,
-
-  // Append a compact memory-count footer to injected context
-  "memoUsageFooter": true,
-
-  // Classify memories into categories before storing them
-  "autoCategoryTagging": false,
-
-  // Deduplicate profile facts across profile, project, and relevant memories
-  "profileCrossArrayDedup": true,
 }
 ```
 
-All fields optional. Env var `SUPERMEMORY_API_KEY` takes precedence over config file.
+### Memory features (safe-on)
 
-### Container Tag Selection
-
-By default, container tags are auto-generated using `containerTagPrefix`:
-
-- User tag: `{prefix}_user_{sha256(git_email)}`
-- Project tag: depends on [`projectTagStrategy`](#project-tag-strategy) (defaults to `hashGitRepoName`)
-
-You can override this by specifying exact container tags:
+These default to enabled. See [Features](#capture-recall-and-display-knobs) for the per-row description.
 
 ```jsonc
 {
-  // Use a specific container tag for user memories
-  "userContainerTag": "my-team-workspace",
+  // Capture
+  "incrementalCapture": true,
+  "maxCaptureChars": 5000,
+  "signalExtraction": true,
+  "signalKeywords": ["remember", "save this", "important"],
+  "signalTurnsBefore": 3,
+  "sessionEndSave": true,
+  "dedupEnabled": true,
+  "dedupCacheSize": 500,
 
-  // Use a specific container tag for project memories
-  "projectContainerTag": "my-awesome-project",
+  // Recall
+  "recallKeywordPatterns": ["bring that back", "look that up"],
+  "postCompactionReinject": true,
+  "profileCrossArrayDedup": true,
+
+  // Display & metadata
+  "metadataStripping": true,
+  "relativeTimeDisplay": true,
+  "memoUsageFooter": true,
+  "entityContext": "Focus on people, projects, tools, and decisions that matter to this repository.",
 }
 ```
 
-This is useful when you want to:
+### Opt-in features (costly-off)
 
-- Share memories across team members (same `userContainerTag`)
-- Sync memories between different machines for the same project
-- Organize memories using your own naming scheme
-- Integrate with existing Supermemory container tags from other tools
+These default to disabled because they add per-message API cost.
 
-### Project Tag Strategy
+```jsonc
+{
+  // Run recall search on every message
+  "everyMessageRecall": false,
 
-When `projectContainerTag` is **not** set, the project tag is auto-generated according to `projectTagStrategy`:
+  // Re-inject memory every N completed turns (0 disables)
+  "reinjectEveryN": 0,
+
+  // Classify memories into categories before storing them
+  "autoCategoryTagging": false,
+}
+```
+
+## Container Tags
+
+Memories are scoped to "container tags". Two scopes exist:
+
+| Scope   | Persists     | Default formula                              |
+| ------- | ------------ | -------------------------------------------- |
+| User    | All projects | `{prefix}_user_{sha256(git_email)}`          |
+| Project | This project | depends on `projectTagStrategy` (see below)  |
+
+`prefix` is `containerTagPrefix` (default `opencode`).
+
+### Override
+
+Set `userContainerTag` / `projectContainerTag` to use an exact string instead of the auto-generated value. Useful for:
+
+- Sharing memories across teammates (same `userContainerTag`)
+- Syncing memories between machines for the same project
+- Integrating with existing Supermemory tags from other tools
+
+### Project tag strategy
+
+When `projectContainerTag` is **not** set, the project tag follows `projectTagStrategy`:
 
 | Strategy           | Output                                                | Notes                                                          |
 | ------------------ | ----------------------------------------------------- | -------------------------------------------------------------- |
@@ -426,29 +314,23 @@ When `projectContainerTag` is **not** set, the project tag is auto-generated acc
 
 Both git-backed strategies read `git config --get remote.origin.url` from the project directory and **fall back to `hashDirectory`** when:
 
-- the directory is not inside a git repo, or
+- the directory is not inside a git repo,
 - the repo has no `origin` remote, or
 - the remote URL cannot be parsed into an `owner/repo` shape.
 
-Example resolution (HTTPS or SSH remote of `https://github.com/TheOrdinaryWow/abc`, prefix `my-prefix-`):
+Example (remote `https://github.com/TheOrdinaryWow/abc`, prefix `my-prefix-`):
 
 ```jsonc
-{
-  "containerTagPrefix": "my-prefix-",
-  "projectTagStrategy": "hashGitRepoName"
-}
+{ "containerTagPrefix": "my-prefix-", "projectTagStrategy": "hashGitRepoName" }
 // → my-prefix-_project_{sha256("TheOrdinaryWow/abc")}
 
-{
-  "containerTagPrefix": "my-prefix-",
-  "projectTagStrategy": "rawGitRepoName"
-}
+{ "containerTagPrefix": "my-prefix-", "projectTagStrategy": "rawGitRepoName" }
 // → my-prefix-_project_TheOrdinaryWow.abc
 ```
 
 ## Usage with Oh My OpenAgent
 
-If you're using [Oh My OpenAgent](https://github.com/code-yeongyu/oh-my-openagent), disable its built-in auto-compact hook to let supermemory handle context compaction:
+If you're using [Oh My OpenAgent](https://github.com/code-yeongyu/oh-my-openagent), disable its built-in auto-compact hook so this plugin can handle context compaction:
 
 Add to `~/.config/opencode/oh-my-openagent.json`:
 
@@ -458,7 +340,7 @@ Add to `~/.config/opencode/oh-my-openagent.json`:
 }
 ```
 
-When a captured message contains plugin or orchestrator scaffolding (slash-command expansions, system reminders, `<Work_Context>` blocks, skill bodies, session-context wrappers, mode indicators, F-task briefs, etc.), those marker shapes are stripped before the message enters memory; whatever real user content surrounded them is preserved. Messages that are 100% scaffolding leave nothing behind and are not captured at all. To clean up memories captured before this filtering existed, see [Maintenance](#maintenance).
+The installer detects Oh My OpenAgent and offers to do this for you. Use `--disable-context-recovery` to apply it non-interactively.
 
 ## Development
 
@@ -470,7 +352,7 @@ bun test            # 228 tests across unit, contract, and integration suites
 bun run check       # biome lint + format with --write
 ```
 
-Local install:
+Local install — point your OpenCode config at the working tree:
 
 ```jsonc
 {
@@ -478,11 +360,15 @@ Local install:
 }
 ```
 
+Contributor guidance for agents: see [`AGENTS.md`](./AGENTS.md).
+
 ## Logs
 
 ```bash
 tail -f ~/.local/share/opencode-supermemory-p/log/main.log
 ```
+
+Override path via `OPENCODE_SUPERMEMORY_LOG`. Override level via `OPENCODE_SUPERMEMORY_LOG_LEVEL` (`trace` / `debug` / `info` / `warning` / `error` / `fatal`; legacy alias `warn` → `warning`).
 
 ## Maintenance
 
