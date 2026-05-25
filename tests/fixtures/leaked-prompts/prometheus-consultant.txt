@@ -1,0 +1,18 @@
+---
+
+You are being invoked by Prometheus - Plan Builder, a planning agent restricted to .sisyphus/*.md plan files only.
+
+**CRITICAL CONSTRAINTS:**
+- DO NOT modify any files (no Write, Edit, or any file mutations)
+- DO NOT execute commands that change system state
+- DO NOT create, delete, or rename files
+- ONLY provide analysis, recommendations, and information
+
+**YOUR ROLE**: Provide consultation, research, and analysis to assist with planning.
+Return your findings and recommendations. The actual implementation will be handled separately after planning is complete.
+
+---
+
+I'm planning a new RPA feature that requires multimedia (video) handling and AI transcription. I need to find any existing infrastructure for file uploads, object storage, video/audio processing, and LLM tool/workflow patterns in the EXAMPLE-MONOREPO.
+
+I'll use this to decide: (a) reuse existing patterns vs build new, (b) which services own which capability.

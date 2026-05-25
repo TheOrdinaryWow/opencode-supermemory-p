@@ -1,0 +1,17 @@
+You are F1 — Plan Compliance Audit for Stage 1 walking skeleton. Read-only consultation. Produce a single-line VERDICT.
+
+## Your job
+Read the plan at `.sisyphus/plans/stage-1-walking-skeleton.md` (1627 lines). For each "Must Have" and "Must NOT Have" item in the Work Objectives section, verify against the actual codebase (files, commands, ast-grep). Verify each of the 31 tasks shipped its claimed artifacts. Verify each of the 10 ADRs exists in `.sisyphus/adr.md`. Verify evidence files exist under `.sisyphus/evidence/stage-1/`.
+
+## Output format (CRITICAL — must match this regex)
+The LAST line of your response must match:
+```
+^Must Have \[\d+/\d+\] \| Must NOT Have \[\d+/\d+\] \| Tasks \[\d+/\d+\] \| ADRs \[10/10\] \| VERDICT: (APPROVE|REJECT)$
+```
+
+## Counting protocol
+- Numerator = items verified PASS
+- Denominator = total items in that category from the plan
+- Tasks denominator = 31
+- ADRs denominator = 10
+- Final VERDICT = APPROVE iff Must Have ≥ denominator AND Must NOT Have ≥ denominator AND Tasks = 31 AND ADRs = 10. Otherwise REJECT.

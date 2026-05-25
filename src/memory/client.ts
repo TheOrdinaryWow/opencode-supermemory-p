@@ -9,6 +9,7 @@ import { detectCategory } from "@/memory/category";
 import { createDedupCache, type DedupCache } from "@/memory/dedup";
 import { clampEntityContext } from "@/memory/entity-context";
 import type { AppError } from "@/shared/errors";
+import { redactedPreview } from "@/shared/redact";
 import { err, ok, type Result } from "@/shared/result";
 import { withTimeout } from "@/shared/timeout";
 import type { ConversationIngestResponse, ConversationMessage, MemorySource, MemoryType } from "@/types/index";
@@ -168,7 +169,7 @@ export class SupermemoryClient {
   }
 
   async addMemory(content: string, containerTag: string, metadata?: AddMemoryMetadata): Promise<Result<AddMemoryResult, AppError>> {
-    logger.info("addMemory: start", { containerTag, contentLength: content.length });
+    logger.info("addMemory: start", { containerTag, contentLength: content.length, preview: redactedPreview(content) });
     return withResult("addMemory", async () => {
       const config = getConfig();
       const nextMetadata: Record<string, unknown> & { type?: string } = { ...(metadata ?? {}) };
@@ -197,7 +198,7 @@ export class SupermemoryClient {
       if (config.dedupEnabled) {
         this.getDedupCache(config).add(content);
       }
-      logger.info("addMemory: success", { id: result.id });
+      logger.info("addMemory: success", { id: result.id, containerTag });
       return { success: true as const, ...result };
     });
   }
