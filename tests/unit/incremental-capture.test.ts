@@ -1,6 +1,11 @@
-import { describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 
-import { type EventMessageUpdated, handleMessageUpdatedForCapture, type IncrementalCaptureDeps } from "@/capture/incremental";
+import {
+  type EventMessageUpdated,
+  handleMessageUpdatedForCapture,
+  type IncrementalCaptureDeps,
+  resetIncrementalCaptureState,
+} from "@/capture/incremental";
 import { DEFAULTS } from "@/config/defaults";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 
@@ -179,5 +184,40 @@ describe("handleMessageUpdatedForCapture", () => {
     expect(addMemory).toHaveBeenCalledTimes(1);
     expect(addMemory.mock.calls[0]?.[0]).toContain("real stuff");
     expect(addMemory.mock.calls[0]?.[0]).not.toContain("ANALYSIS MODE");
+  });
+
+  describe("in-flight dedup (TOCTOU race)", () => {
+    afterEach(() => resetIncrementalCaptureState());
+
+    it("deduplicates two concurrent fires for the same (sessionID, messageID)", async () => {
+      // Regression: previous code only consulted the on-disk tracker file,
+      // which was updated AFTER addMemory. Two events landing in that
+      // window both passed `lastCaptured === messageID` and double-saved.
+      let resolveTracker: (value: null) => void = () => {};
+      const trackerPromise = new Promise<null>((resolve) => {
+        resolveTracker = resolve;
+      });
+      const getLastCaptured = mock(async () => trackerPromise);
+      const { deps, addMemory } = makeDeps({
+        tracker: { getLastCaptured, appendCaptured: mock(async () => undefined), pruneOldTrackers: mock(async () => 0) },
+      });
+
+      const first = handleMessageUpdatedForCapture(makeEvent(), deps);
+      const second = handleMessageUpdatedForCapture(makeEvent(), deps);
+      resolveTracker(null);
+      await Promise.all([first, second]);
+
+      expect(addMemory).toHaveBeenCalledTimes(1);
+    });
+
+    it("releases the in-flight slot after completion so genuine retries are possible", async () => {
+      const { deps, addMemory } = makeDeps();
+      await handleMessageUpdatedForCapture(makeEvent({ id: "msg_retry" }), deps);
+      // After completion, a NEW event for the same id+session should NOT
+      // be blocked by the in-flight Set (only by the tracker file dedup,
+      // which the mock returns null for).
+      await handleMessageUpdatedForCapture(makeEvent({ id: "msg_retry" }), deps);
+      expect(addMemory).toHaveBeenCalledTimes(2);
+    });
   });
 });

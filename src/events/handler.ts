@@ -7,12 +7,10 @@
 
 import { handleMessageUpdatedForCapture, type IncrementalCaptureDeps } from "@/capture/incremental";
 import { handleSessionEnd, type SessionEndDeps } from "@/capture/session-end";
-import * as tracker from "@/capture/tracker";
 import { handleSessionCompacted } from "@/compaction/post-reinject";
 import { getConfig } from "@/config/loader";
 import type { SupermemoryConfig } from "@/config/schema";
-import { resultSupermemoryClient } from "@/memory/client";
-import { extractSignalContent } from "@/signal/extract";
+import { reapSession } from "@/session/reaper";
 
 export interface EventInput {
   event: { type: string; properties?: unknown };
@@ -28,11 +26,8 @@ export interface EventDeps {
 export async function handleEvent(input: EventInput, deps: EventDeps): Promise<void> {
   const props = input.event.properties as Record<string, unknown> | undefined;
   const info = props?.info as { role?: string; finish?: unknown } | undefined;
-  if (input.event.type === "message.updated" && info?.role === "assistant" && info.finish) {
-    void handleMessageUpdatedForCapture(
-      input as Parameters<typeof handleMessageUpdatedForCapture>[0],
-      deps.incrementalCapture ?? createDefaultIncrementalCaptureDeps(),
-    );
+  if (input.event.type === "message.updated" && info?.role === "assistant" && info.finish && deps.incrementalCapture) {
+    void handleMessageUpdatedForCapture(input as Parameters<typeof handleMessageUpdatedForCapture>[0], deps.incrementalCapture);
   }
 
   if ((input.event.type === "session.deleted" || input.event.type === "session.idle") && deps.sessionEnd) {
@@ -46,14 +41,14 @@ export async function handleEvent(input: EventInput, deps: EventDeps): Promise<v
   if (deps.compactionHook) {
     await deps.compactionHook.event(input);
   }
-}
 
-function createDefaultIncrementalCaptureDeps(): IncrementalCaptureDeps {
-  return {
-    config: getConfig(),
-    client: resultSupermemoryClient,
-    tracker,
-    signalExtract: extractSignalContent,
-    dataDir: process.cwd(),
-  };
+  // Fan out cross-module cleanup AFTER the dependent handlers above have
+  // ALREADY been kicked off via `void` (fire-and-forget). Those handlers
+  // capture sessionID by value, so reaping the registry entries now does
+  // not affect their inflight work. Without this, every long-running
+  // OpenCode process slowly accumulates per-session state.
+  if (input.event.type === "session.deleted") {
+    const sessionID = (props?.info as { id?: string } | undefined)?.id;
+    if (sessionID) reapSession(sessionID);
+  }
 }

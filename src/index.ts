@@ -86,6 +86,7 @@ export const SupermemoryPlugin: Plugin = async (ctx: PluginInput) => {
                 }),
               },
               signalExtract: extractSignalContent,
+              dataDir: ctx.directory,
             },
           )
         : Promise.resolve(),

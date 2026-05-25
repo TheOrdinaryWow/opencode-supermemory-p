@@ -1,6 +1,6 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 
-import { handlePreCompactionSave, type PreSaveDeps } from "@/compaction/pre-save";
+import { handlePreCompactionSave, type PreSaveDeps, resetPreSaveState } from "@/compaction/pre-save";
 import { DEFAULTS } from "@/config/defaults";
 import { type SupermemoryConfig, SupermemoryConfigSchema } from "@/config/schema";
 import { extractSignalContent, type Message } from "@/signal/extract";
@@ -31,6 +31,7 @@ function makeDeps(messagesList: Message[], overrides: Partial<PreSaveDeps> = {})
     client: { addMemory } as unknown as PreSaveDeps["client"],
     sdkSession: { messages },
     signalExtract: extractSignalContent,
+    dataDir: "/tmp/project",
     ...overrides,
   };
 
@@ -162,6 +163,32 @@ describe("handlePreCompactionSave", () => {
       expect(dumped).not.toContain("system-reminder");
       expect(dumped).toContain("please remember this real ask");
       expect(dumped).toContain("acknowledged");
+    });
+
+    describe("compaction dedup (TOCTOU race)", () => {
+      afterEach(() => resetPreSaveState());
+
+      it("deduplicates two concurrent pre-save fires for the same sessionID", async () => {
+        // Regression: pre-save had ZERO dedup. Two `session.compacting`
+        // events for the same id both awaited sdkSession.messages and
+        // both wrote a duplicate compaction snapshot.
+        let resolveMessages: (value: { messages: Message[] }) => void = () => {};
+        const messagesPromise = new Promise<{ messages: Message[] }>((resolve) => {
+          resolveMessages = resolve;
+        });
+        const messages = mock(async () => messagesPromise);
+        const { deps, addMemory } = makeDeps([makeMessage("msg_1", "user", "Remember the deploy flag.")], {
+          sdkSession: { messages },
+        });
+        const input = { sessionID: "ses_race", output: { context: [] as string[] } };
+
+        const first = handlePreCompactionSave(input, deps);
+        const second = handlePreCompactionSave(input, deps);
+        resolveMessages({ messages: [makeMessage("msg_1", "user", "Remember the deploy flag.")] });
+        await Promise.all([first, second]);
+
+        expect(addMemory).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

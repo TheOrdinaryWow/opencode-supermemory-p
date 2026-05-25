@@ -3,6 +3,8 @@ import { getLogger } from "@logtape/logtape";
 import type { SupermemoryConfig } from "@/config/schema";
 import type { SupermemoryClient } from "@/memory/client";
 import { getProjectTag } from "@/memory/tags";
+import { isSessionDisabled } from "@/session/disabled";
+import { registerSessionCleaner } from "@/session/reaper";
 import { createPromptBoundary } from "@/shared/user-prompt";
 import type { extractSignalContent, Message } from "@/signal/extract";
 
@@ -11,6 +13,20 @@ const logger = getLogger(["supermemory", "compaction", "pre-save"]);
 const PRESERVED_CONTEXT_MESSAGE = "Memories preserved in Supermemory.";
 const MAX_TURNS = 20;
 const MAX_CONTENT_CHARS = 50_000;
+
+// Process-lifetime dedup. Mirrors the savedSessions guard in
+// capture/session-end.ts: a session that already had its compaction
+// snapshot written must not write again if the host fires multiple
+// `experimental.session.compacting` events for the same id (e.g. when
+// the user manually triggers /compact after an automatic one).
+const savedCompactions = new Set<string>();
+
+registerSessionCleaner((sessionID) => savedCompactions.delete(sessionID));
+
+/** Test-only: drop process-lifetime state so suites stay isolated. */
+export function resetPreSaveState(): void {
+  savedCompactions.clear();
+}
 
 export interface PreSaveDeps {
   config: SupermemoryConfig;
@@ -26,6 +42,14 @@ export interface PreSaveDeps {
    * has SOMETHING to anchor on — better than losing the entire session.
    */
   signalExtract: typeof extractSignalContent;
+  /**
+   * Plugin install directory. Used as input to `getProjectTag` so the
+   * pre-compaction memory lands on the SAME container tag as the rest of
+   * the plugin's writes. Previously this used `process.cwd()`, which
+   * drifts if the host process changes working directory and creates
+   * orphan memories under a different tag.
+   */
+  dataDir: string;
 }
 
 export async function handlePreCompactionSave(
@@ -34,13 +58,20 @@ export async function handlePreCompactionSave(
 ): Promise<void> {
   try {
     if (deps.config.postCompactionReinject !== true && deps.config.sessionEndSave !== true) return;
+    if (isSessionDisabled(input.sessionID)) return;
+    // Reserve the dedup slot BEFORE the awaits below — same TOCTOU
+    // pattern as session-end. Without this, two `session.compacting`
+    // events for the same session both pass the (non-existent) check,
+    // both await `sdkSession.messages`, and both write the snapshot.
+    if (savedCompactions.has(input.sessionID)) return;
+    savedCompactions.add(input.sessionID);
 
     try {
       const response = await deps.sdkSession.messages({ sessionId: input.sessionID });
       const content = buildSessionContent(response.messages, deps);
 
       if (content.length > 0) {
-        const projectTag = getProjectTag(process.cwd(), deps.config);
+        const projectTag = getProjectTag(deps.dataDir, deps.config);
         const result = await deps.client.addMemory(content, projectTag, { type: "conversation", source: "summary" });
         if (!result.ok) {
           logger.warn("[compaction] pre-save failed", { sessionID: input.sessionID, error: result.error.message });
