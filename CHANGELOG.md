@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.4.0](https://github.com/TheOrdinaryWow/opencode-supermemory-p/compare/v1.3.0...v1.4.0) (2026-05-25)
+
+
+### Features
+
+* **memory:** log redacted content preview and add leak regression fixtures ([43359c5](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/43359c59b45562e85acc2a5aa6eab97a484fa817))
+* **session:** per-session opt-out marker and cross-module reaper ([59f3a55](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/59f3a5528881641cc9cd35763e8c398d2298b445))
+
+
+### Bug Fixes
+
+* **capture:** close compaction and message-update dedup races ([1d27818](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/1d2781834c0f85fee41636a5e4bbf4757504bb40))
+* **capture:** close session-end race that double-saved on idle+deleted ([4280d06](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/4280d067c1c406438594c02e212db3e71e03bee3))
+* **capture:** strip sub-agent invocation prompts before saving ([5e9e992](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/5e9e9925620abd7bad6575aaa670ae401d5c45a9))
+* **signal:** drop high-false-positive adverbs from default keywords ([872bfc7](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/872bfc79d0efdd04bdcae9ae6b1a479cd813d95f))
+* **signal:** match keywords as whole words and ignore code blocks ([ba40e30](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/ba40e307eef8cbc6a3ab5670eea2e7218bbb8dda))
+
+
+### Documentation
+
+* document per-session opt-out markers ([04770f9](https://github.com/TheOrdinaryWow/opencode-supermemory-p/commit/04770f99e2c031484f6ff071b496fe93ab8963f8))
+
 ## [1.3.0](https://github.com/TheOrdinaryWow/opencode-supermemory-p/compare/v1.2.0...v1.3.0) (2026-05-14)
 
 
