@@ -74,6 +74,25 @@ describe("isPolluted", () => {
     const text = 'first line\nthen <skill_content name="x">huge content</skill_content>\nend';
     expect(isPolluted(text)).toBe(true);
   });
+
+  it("flags sub-agent / consultant invocation prompts (Prometheus, F-task)", () => {
+    // Real-world leaked content from the bug investigation — these are
+    // sub-agent task briefs injected by orchestrators, never typed by a human.
+    const prometheus =
+      "---\n\nYou are being invoked by Prometheus - Plan Builder, a planning agent\n\n**CRITICAL CONSTRAINTS:**\n- DO NOT modify any files\n\n---\n\nActual request here.";
+    expect(isPolluted(prometheus)).toBe(true);
+
+    const fTask = "You are F1 — Plan Compliance Audit for Stage 1 walking skeleton. Read-only consultation.";
+    expect(isPolluted(fTask)).toBe(true);
+
+    const fTask9 = "You are F12 — Code Quality Review.\n## Your job\nReview the diff.";
+    expect(isPolluted(fTask9)).toBe(true);
+  });
+
+  it("does NOT flag plain user text that merely starts with 'You are' (no sub-agent marker)", () => {
+    expect(isPolluted("You are right, that bug is in handler.ts")).toBe(false);
+    expect(isPolluted("You are correct—let me retry.")).toBe(false);
+  });
 });
 
 describe("createPromptBoundary", () => {
@@ -149,6 +168,29 @@ describe("createPromptBoundary", () => {
     // No user-wrapper present, so userText is the raw trimmed text. The
     // important guarantee is `isPolluted: true` — capture callers will skip.
     expect(boundary.userText).toContain("follow-up");
+  });
+
+  it("strips Prometheus-style sub-agent invocation block (with --- terminator)", () => {
+    const text =
+      "---\n\nYou are being invoked by Prometheus - Plan Builder, a planning agent restricted to .sisyphus/*.md plan files only.\n\n**CRITICAL CONSTRAINTS:**\n- DO NOT modify any files\n\n---\n\nI'm planning a new RPA feature.";
+    const boundary = createPromptBoundary([{ type: "text", text }]);
+    expect(boundary.userText).toBe("I'm planning a new RPA feature.");
+    expect(boundary.isPolluted).toBe(true);
+  });
+
+  it("strips F-task sub-agent brief through end of message (whole brief is scaffolding)", () => {
+    const text =
+      "You are F1 — Plan Compliance Audit for Stage 1 walking skeleton. Read-only consultation.\n\n## Your job\nRead the plan at .sisyphus/plans/stage-1.md.\n\n## Output format\nVERDICT: APPROVE";
+    const boundary = createPromptBoundary([{ type: "text", text }]);
+    expect(boundary.userText).toBe("");
+    expect(boundary.isPolluted).toBe(true);
+  });
+
+  it("strips 'You are being invoked by' brief with no closing --- (eats to end)", () => {
+    const text = "You are being invoked by Prometheus - Plan Builder.\n\n**YOUR ROLE**: Consult.\n\nReturn findings.";
+    const boundary = createPromptBoundary([{ type: "text", text }]);
+    expect(boundary.userText).toBe("");
+    expect(boundary.isPolluted).toBe(true);
   });
 });
 

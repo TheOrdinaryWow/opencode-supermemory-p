@@ -75,6 +75,18 @@ const SCAFFOLDING_PATTERNS: ReadonlyArray<RegExp> = [
   /\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\s\S]*?Example: delegate_task\([^)]*\)\s*/g,
   /MANDATORY delegate_task params:[\s\S]*?Example: delegate_task\([^)]*\)\s*/g,
 
+  // Sub-agent / consultant invocation prompts. These are never typed by a
+  // human — they are role/task briefs injected by orchestrators (Sisyphus
+  // Prometheus, F-task auditors, etc.). The whole brief is scaffolding,
+  // so we strip from the first marker to the next isolated `---` line or
+  // end-of-message. Two shapes we have seen in the wild:
+  //   Prometheus:  `---\nYou are being invoked by <Name> - <Role>, ...`
+  //   F-task:      `You are F<N> — <Title>. Read-only consultation. ...`
+  // The opening `---` is optional; some callers omit it.
+  /(?:^|\n)---[\t ]*\n(?:[\t ]*\n)*You are being invoked by [\s\S]*?\n---[\t ]*\n+/g,
+  /(?:^|\n)You are being invoked by [\s\S]*$/,
+  /(?:^|\n)You are F\d+\s+[—–-]\s[\s\S]*$/,
+
   // Auto-Selected Plan announcement through the boulder.json kickoff line.
   /## Auto-Selected Plan[\s\S]*?boulder\.json has been created\.[^\n]*\n?/g,
 
@@ -124,6 +136,10 @@ export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
   /^[\t ]*\[(?:analyze|search|deep|ultrawork|ultrabrain|artistry|writing|quick|visual-engineering|unspecified-(?:low|high))-mode\][\t ]*$/m,
   /You are starting a Sisyphus work session\./,
   /MANDATORY delegate_task params:/,
+
+  // Sub-agent invocation prompts (see SCAFFOLDING_PATTERNS for shapes).
+  /(?:^|\n)You are being invoked by /,
+  /(?:^|\n)You are F\d+\s+[—–-]\s/,
 ];
 
 const USER_WRAPPER_PATTERN = /<(user-request|user-task)>([\s\S]*?)<\/\1>/gi;

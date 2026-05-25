@@ -46,6 +46,10 @@ export const POLLUTION_PATTERNS: ReadonlyArray<RegExp> = [
   // Standalone scaffolding signature strings
   /You are starting a Sisyphus work session\./,
   /MANDATORY delegate_task params:/,
+  // Sub-agent / consultant invocation prompts (Prometheus, F-task auditors,
+  // etc.) — never typed by a human, always injected by an orchestrator.
+  /(?:^|\n)You are being invoked by /,
+  /(?:^|\n)You are F\d+\s+[—–-]\s/,
 ];
 
 export interface MemoryRecord {
