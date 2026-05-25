@@ -75,6 +75,32 @@ describe("handleSessionEnd", () => {
     expect(addMemory).toHaveBeenCalledTimes(1);
   });
 
+  it("deduplicates idle and deleted events fired CONCURRENTLY for the same session", async () => {
+    // Regression: previously `savedSessions.add` ran AFTER all awaits
+    // (tracker fetch, session messages fetch, addMemory). Two events for
+    // the same session that landed in that ~60ms window both passed the
+    // `has()` check and both wrote a duplicate memory. The fix reserves
+    // the slot immediately after the has() check.
+    let resolveMessages: (value: unknown) => void = () => {};
+    const messagesPromise = new Promise((resolve) => {
+      resolveMessages = resolve;
+    });
+    const messages = mock(async () => {
+      await messagesPromise;
+      return { data: [makeMessage("msg_1", "user", "Remember the deploy flag.")] };
+    });
+    const { deps, addMemory } = makeDeps({ sdkClient: { session: { messages } } });
+
+    // Fire both events without awaiting between them — simulates the
+    // real OpenCode flow where idle and deleted arrive back-to-back.
+    const idlePromise = handleSessionEnd(makeIdleEvent("ses_race"), deps);
+    const deletedPromise = handleSessionEnd(makeDeletedEvent("ses_race"), deps);
+    resolveMessages({});
+    await Promise.all([idlePromise, deletedPromise]);
+
+    expect(addMemory).toHaveBeenCalledTimes(1);
+  });
+
   it("skips empty sessions", async () => {
     const messages = mock(async () => ({ data: [] }));
     const { deps, addMemory } = makeDeps({ sdkClient: { session: { messages } } });

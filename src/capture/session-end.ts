@@ -61,6 +61,14 @@ export async function handleSessionEnd(input: EventSessionDeleted | EventSession
 
     const sessionID = getSessionID(input);
     if (!sessionID || savedSessions.has(sessionID)) return;
+    savedSessions.add(sessionID);
+    // Reserve the slot BEFORE any awaits. OpenCode normally fires both
+    // `session.idle` and `session.deleted` for the same session within a
+    // few hundred ms. Without this guard both events pass the `has()`
+    // check, both await the messages fetch (~60ms+), and both write a
+    // duplicate memory. Marking immediately costs us one save if the
+    // work below throws — but the surrounding try/catch already
+    // swallows errors, so duplicate-write avoidance wins.
 
     const trackersDir = join(deps.dataDir, "capture-trackers");
     const lastCaptured = await deps.tracker.getLastCaptured(sessionID, trackersDir);
@@ -80,7 +88,6 @@ export async function handleSessionEnd(input: EventSessionDeleted | EventSession
     if (content.length === 0) return;
 
     await deps.client.addMemory(content, deps.projectTag, { type: "conversation", source: "summary" });
-    savedSessions.add(sessionID);
 
     if (input.event.type === "session.deleted") {
       await deps.tracker.pruneOldTrackers(trackersDir);
