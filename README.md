@@ -8,6 +8,7 @@ Your agent remembers what you tell it — across sessions, across projects.
 
 - [Installation](#installation)
 - [Disabling Per Project](#disabling-per-project)
+- [Disabling Per Session](#disabling-per-session)
 - [Features](#features)
 - [Tool Usage](#tool-usage)
 - [Memory Scoping](#memory-scoping)
@@ -69,6 +70,28 @@ touch .supermemoryignore
 When this file is present, the plugin loads but every hook becomes a no-op — no context injection, no capture, no compaction, no tool calls against Supermemory. The `SUPERMEMORY_API_KEY` is ignored for this project; other projects in the same OpenCode install are unaffected.
 
 The check is presence-only (file contents are not parsed), matching the `.gitignore` / `.dockerignore` convention. Remove the file to re-enable the plugin.
+
+### Disabling Per Session
+
+For a softer, per-conversation switch you can flip in the middle of a chat, type one of these markers anywhere in your message:
+
+```
+<supermemory:off />   pause capture, recall, compaction, and context injection for THIS session
+<supermemory:on />    resume
+```
+
+Use it when:
+
+- You are pasting sensitive content for one turn only.
+- You are debugging the plugin itself or quoting captured memories back to the agent (otherwise the conversation gets captured into its own memory store).
+- You are inside a side-quest you don't want indexed.
+
+Notes:
+
+- Scope is per-session (per `sessionID`) and lives in memory only — restart OpenCode and the disable state is forgotten.
+- Markers are stripped from the message before the assistant sees it, so they are safe to drop into normal prose.
+- Self-closing (`<supermemory:off />`) and bare (`<supermemory:off>`) forms both work.
+- When both markers appear in the same message, `on` wins (covers the "paste-then-undo" case).
 
 ## Features
 
