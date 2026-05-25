@@ -16,14 +16,13 @@ import { describe, expect, it } from "bun:test";
 // =====================================================================
 
 describe("new constants — DEFAULT_SIGNAL_KEYWORDS / DEFAULT_RECALL_KEYWORD_PATTERNS / DEFAULT_ENTITY_CONTEXT", () => {
-  it("DEFAULT_SIGNAL_KEYWORDS exports an array of exactly 17 English terms", async () => {
+  it("DEFAULT_SIGNAL_KEYWORDS exports an array of exactly 14 English terms", async () => {
     const { DEFAULT_SIGNAL_KEYWORDS } = await import("@/config/defaults");
     expect(Array.isArray(DEFAULT_SIGNAL_KEYWORDS)).toBe(true);
-    expect(DEFAULT_SIGNAL_KEYWORDS).toHaveLength(17);
+    expect(DEFAULT_SIGNAL_KEYWORDS).toHaveLength(14);
     // Spot-check the documented terms; the loader merges this with
     // user-supplied keywords downstream.
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("remember");
-    expect(DEFAULT_SIGNAL_KEYWORDS).toContain("important");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("save this");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("note this");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("don't forget");
@@ -34,11 +33,18 @@ describe("new constants — DEFAULT_SIGNAL_KEYWORDS / DEFAULT_RECALL_KEYWORD_PAT
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("I prefer");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("I use");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("I like");
-    expect(DEFAULT_SIGNAL_KEYWORDS).toContain("always");
-    expect(DEFAULT_SIGNAL_KEYWORDS).toContain("never");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("my team");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("my email");
     expect(DEFAULT_SIGNAL_KEYWORDS).toContain("my company");
+  });
+
+  it("DEFAULT_SIGNAL_KEYWORDS does not include the high-false-positive adverbs", async () => {
+    const { DEFAULT_SIGNAL_KEYWORDS } = await import("@/config/defaults");
+    // These were removed because they fire on engineering specs and
+    // sub-agent task briefs, producing massive scaffolding captures.
+    expect(DEFAULT_SIGNAL_KEYWORDS).not.toContain("always");
+    expect(DEFAULT_SIGNAL_KEYWORDS).not.toContain("never");
+    expect(DEFAULT_SIGNAL_KEYWORDS).not.toContain("important");
   });
 
   it("DEFAULT_RECALL_KEYWORD_PATTERNS exports a non-empty array of recall trigger phrases", async () => {

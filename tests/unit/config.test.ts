@@ -271,7 +271,6 @@ describe("loadConfig — fixture round-trips", () => {
       signalExtraction: true,
       signalKeywords: [
         "remember",
-        "important",
         "save this",
         "note this",
         "don't forget",
@@ -282,8 +281,6 @@ describe("loadConfig — fixture round-trips", () => {
         "I prefer",
         "I use",
         "I like",
-        "always",
-        "never",
         "my team",
         "my email",
         "my company",

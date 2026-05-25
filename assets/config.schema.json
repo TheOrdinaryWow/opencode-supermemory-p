@@ -134,7 +134,6 @@
     "signalKeywords": {
       "default": [
         "remember",
-        "important",
         "save this",
         "note this",
         "don't forget",
@@ -145,8 +144,6 @@
         "I prefer",
         "I use",
         "I like",
-        "always",
-        "never",
         "my team",
         "my email",
         "my company"

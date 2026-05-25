@@ -42,10 +42,14 @@ export const DEFAULT_KEYWORD_PATTERNS: readonly string[] = [
  * compilation. Sourced from the claude-supermemory baseline plus a small set
  * of identity-anchoring phrases ("my name", "I work", "my company") that
  * surface lasting personal facts.
+ *
+ * Note: the bare adverbs "always" / "never" / "important" were removed
+ * (commit fixing the leak bug) because they trigger on engineering specs,
+ * sub-agent task briefs, and code comments — producing massive false-
+ * positive captures of plugin/orchestrator scaffolding.
  */
 export const DEFAULT_SIGNAL_KEYWORDS: readonly string[] = [
   "remember",
-  "important",
   "save this",
   "note this",
   "don't forget",
@@ -56,8 +60,6 @@ export const DEFAULT_SIGNAL_KEYWORDS: readonly string[] = [
   "I prefer",
   "I use",
   "I like",
-  "always",
-  "never",
   "my team",
   "my email",
   "my company",
