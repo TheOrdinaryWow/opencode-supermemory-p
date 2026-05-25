@@ -1,4 +1,5 @@
 import type { SupermemoryConfig } from "@/config/schema";
+import { registerSessionCleaner } from "@/session/reaper";
 
 export interface EventSessionCompacted {
   event: {
@@ -9,6 +10,8 @@ export interface EventSessionCompacted {
 }
 
 export const pendingReinjectSessions = new Set<string>();
+
+registerSessionCleaner((sessionID) => pendingReinjectSessions.delete(sessionID));
 
 export function handleSessionCompacted(input: EventSessionCompacted, config: SupermemoryConfig): void {
   if (config.postCompactionReinject !== true) return;

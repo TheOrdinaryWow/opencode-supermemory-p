@@ -87,6 +87,11 @@ const SCAFFOLDING_PATTERNS: ReadonlyArray<RegExp> = [
   /(?:^|\n)You are being invoked by [\s\S]*$/,
   /(?:^|\n)You are F\d+\s+[—–-]\s[\s\S]*$/,
 
+  // Per-session opt-out markers (see src/session/disabled.ts). Stripped
+  // so the assistant never sees the toggle in `userText`. Detection of
+  // the markers happens BEFORE stripping in `chat/handler.ts`.
+  /<supermemory:(?:off|on)\s*\/?>/gi,
+
   // Auto-Selected Plan announcement through the boulder.json kickoff line.
   /## Auto-Selected Plan[\s\S]*?boulder\.json has been created\.[^\n]*\n?/g,
 

@@ -1,6 +1,8 @@
 import { join } from "node:path";
 
 import type { SupermemoryConfig } from "@/config/schema";
+import { isSessionDisabled } from "@/session/disabled";
+import { registerSessionCleaner } from "@/session/reaper";
 import { type extractSignalContent, groupIntoTurns, type Message, type MessagePart, type Turn } from "@/signal/extract";
 import type { MemorySource } from "@/types/index";
 
@@ -55,12 +57,19 @@ export interface SessionEndDeps {
 
 const savedSessions = new Set<string>();
 
+registerSessionCleaner((sessionID) => savedSessions.delete(sessionID));
+
+/** Test-only: drop process-lifetime state so suites stay isolated. */
+export function resetSessionEndState(): void {
+  savedSessions.clear();
+}
+
 export async function handleSessionEnd(input: EventSessionDeleted | EventSessionIdle, deps: SessionEndDeps): Promise<void> {
   try {
     if (deps.config.sessionEndSave === false) return;
 
     const sessionID = getSessionID(input);
-    if (!sessionID || savedSessions.has(sessionID)) return;
+    if (!sessionID || savedSessions.has(sessionID) || isSessionDisabled(sessionID)) return;
     savedSessions.add(sessionID);
     // Reserve the slot BEFORE any awaits. OpenCode normally fires both
     // `session.idle` and `session.deleted` for the same session within a

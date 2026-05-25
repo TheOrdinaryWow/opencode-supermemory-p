@@ -20,8 +20,11 @@ export interface SessionState {
   forget(sessionId: string): void;
 }
 
+import { registerSessionCleaner } from "@/session/reaper";
+
 export function createSessionState(): SessionState {
   const injectedSessions = new Set<string>();
+  registerSessionCleaner((sessionID) => injectedSessions.delete(sessionID));
   return {
     markInjected(sessionId: string): void {
       injectedSessions.add(sessionId);

@@ -22,6 +22,8 @@ import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
 import { detectRecallKeyword, runEveryMessageRecall } from "@/recall/every-message";
 import { shouldPeriodicReinject } from "@/recall/periodic";
+import { updateSessionDisabledFromText } from "@/session/disabled";
+import { registerSessionCleaner } from "@/session/reaper";
 import type { SessionState } from "@/session/state";
 import { generatePartId } from "@/shared/ids";
 import { createPromptBoundary, sanitizeMemoryContextForInjection } from "@/shared/user-prompt";
@@ -82,6 +84,8 @@ export interface ChatHandlerDeps {
 
 const msgCounter = new Map<string, number>();
 
+registerSessionCleaner((sessionID) => msgCounter.delete(sessionID));
+
 /**
  * Runs once per assistant message. Responsibilities:
  *  1. Bail out fast when the plugin is unconfigured or the message has no
@@ -104,6 +108,15 @@ export async function handleChatMessage(input: ChatHandlerInput, output: ChatHan
     if (!deps.isConfigured()) return;
 
     const boundary = createPromptBoundary(output.parts, { sessionID: input.sessionID, role: "user" });
+    // Update opt-out FIRST so we react in the same turn the user toggles
+    // it. Detection runs on `rawText` (markers may be inside code fences
+    // the user pasted intentionally) but the visible `userText` already
+    // has them stripped by SCAFFOLDING_PATTERNS.
+    const disabled = updateSessionDisabledFromText(input.sessionID, boundary.rawText);
+    if (disabled) {
+      deps.log("chat.message: session opted out via <supermemory:off />");
+      return;
+    }
     const userMessage = boundary.userText;
 
     if (!userMessage) {

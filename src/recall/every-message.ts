@@ -3,6 +3,8 @@ import type { Part } from "@opencode-ai/sdk";
 import type { SupermemoryConfig } from "@/config/schema";
 import { formatContextForPrompt } from "@/memory/context";
 import { stripInboundMetadata } from "@/memory/metadata-strip";
+import { isSessionDisabled } from "@/session/disabled";
+import { registerSessionCleaner } from "@/session/reaper";
 import { generatePartId } from "@/shared/ids";
 import { withTimeout } from "@/shared/timeout";
 import { createPromptBoundary, sanitizeMemoryContextForInjection } from "@/shared/user-prompt";
@@ -11,6 +13,8 @@ const RECALL_THROTTLE_MS = 2_000;
 const RECALL_TIMEOUT_MS = 2_000;
 
 const lastRecallAt = new Map<string, number>();
+
+registerSessionCleaner((sessionID) => lastRecallAt.delete(sessionID));
 
 type SearchResult =
   | { success: true; results?: Array<{ similarity?: number; memory?: string; chunk?: string; createdAt?: string | Date }> }
@@ -49,6 +53,7 @@ export async function runEveryMessageRecall(
   output: EveryMessageRecallOutput,
   deps: EveryMessageRecallDeps,
 ): Promise<void> {
+  if (isSessionDisabled(input.sessionID)) return;
   const now = Date.now();
   const previous = lastRecallAt.get(input.sessionID);
   if (previous !== undefined && now - previous < RECALL_THROTTLE_MS) {
