@@ -1,3 +1,4 @@
+import { removeCodeBlocks } from "@/chat/nudge";
 import { createPromptBoundary } from "@/shared/user-prompt";
 
 const MAX_SIGNAL_TURN_CHARS = 50 * 1024;
@@ -50,24 +51,52 @@ export function groupIntoTurns(messages: Message[]): Turn[] {
   });
 }
 
-export function findSignalTurns(turns: Turn[], keywords: string[]): number[] {
-  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase()).filter((keyword) => keyword.length > 0);
+// Word characters that anchor a `\b` boundary in JS regex. Used to decide
+// whether a keyword that starts/ends with a word char needs a `\b` guard.
+const WORD_CHAR = /\w/;
 
-  if (normalizedKeywords.length === 0) {
-    return [];
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Compile a single regex that matches any of the supplied keywords as
+ * WHOLE WORDS (case-insensitive). Word-boundary anchors are added only on
+ * sides that begin/end with a word character — keywords like `<sm:off>`
+ * or `?!` stay literal-matchable without breaking the boundary semantics.
+ *
+ * Returns `null` when the input list yields no usable patterns.
+ */
+function compileKeywordPattern(keywords: string[]): RegExp | null {
+  const parts: string[] = [];
+  for (const raw of keywords) {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) continue;
+    const escaped = escapeRegex(trimmed);
+    const left = WORD_CHAR.test(trimmed[0] ?? "") ? "\\b" : "";
+    const right = WORD_CHAR.test(trimmed[trimmed.length - 1] ?? "") ? "\\b" : "";
+    parts.push(`${left}${escaped}${right}`);
   }
+  if (parts.length === 0) return null;
+  return new RegExp(`(?:${parts.join("|")})`, "i");
+}
+
+export function findSignalTurns(turns: Turn[], keywords: string[]): number[] {
+  const pattern = compileKeywordPattern(keywords.map((k) => k.toLowerCase()));
+  if (!pattern) return [];
 
   return turns.reduce<number[]>((indices, turn, index) => {
-    if (!isDetectableUserTurn(turn)) {
-      return indices;
-    }
+    if (!isDetectableUserTurn(turn)) return indices;
 
-    const normalizedText = turn.text.toLowerCase();
+    // Strip fenced ```...``` and inline `...` code first — a keyword sitting
+    // inside a quoted code/spec block should NOT trigger capture. This
+    // matches the behavior of `chat/keywords.detectMemoryKeyword` so both
+    // surfaces use the same matching contract.
+    const stripped = removeCodeBlocks(turn.text);
 
-    if (normalizedKeywords.some((keyword) => normalizedText.includes(keyword))) {
+    if (pattern.test(stripped)) {
       indices.push(index);
     }
-
     return indices;
   }, []);
 }

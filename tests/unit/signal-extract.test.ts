@@ -167,4 +167,57 @@ describe("signal extraction polluted handling", () => {
     expect(content).not.toContain("system-reminder");
     expect(content).toContain("please remember this fact");
   });
+
+  describe("word-boundary matching", () => {
+    it("matches whole-word keywords (does NOT bleed across word boundaries)", () => {
+      // Regression: previously used `.includes()` so "I work" matched
+      // inside "I worked all night" and "my team" matched inside
+      // "my teammate". Now word-boundary anchors prevent that.
+      const turns: Turn[] = [
+        { role: "user", text: "I worked all night on this", messageId: "u1" },
+        { role: "user", text: "my teammate said hi", messageId: "u2" },
+      ];
+      expect(findSignalTurns(turns, ["I work", "my team"])).toEqual([]);
+    });
+
+    it("still matches the keyword when used as a real whole word", () => {
+      const turns: Turn[] = [
+        { role: "user", text: "I work at Acme", messageId: "u1" },
+        { role: "user", text: "my team uses Bun", messageId: "u2" },
+      ];
+      expect(findSignalTurns(turns, ["I work", "my team"])).toEqual([0, 1]);
+    });
+
+    it("escapes regex metacharacters in user-supplied keywords", () => {
+      const turns: Turn[] = [{ role: "user", text: "this is c++ code", messageId: "u1" }];
+      // `+` would blow up an unescaped regex; whole-word match still works.
+      expect(findSignalTurns(turns, ["c++"])).toEqual([0]);
+    });
+  });
+
+  describe("code-block stripping before keyword match", () => {
+    it("ignores keywords appearing INSIDE fenced code blocks", () => {
+      // Regression: pasting a spec/code sample with the word "remember"
+      // or "never" inside ```...``` used to trigger capture of the whole
+      // surrounding conversation. Now matches the chat keyword path.
+      const turns: Turn[] = [
+        {
+          role: "user",
+          text: "here is a sample:\n```\n// never forget to remember\n```\nthoughts?",
+          messageId: "u1",
+        },
+      ];
+      expect(findSignalTurns(turns, ["remember"])).toEqual([]);
+    });
+
+    it("ignores keywords appearing inside inline code", () => {
+      const turns: Turn[] = [{ role: "user", text: "why does `remember()` exist?", messageId: "u1" }];
+      expect(findSignalTurns(turns, ["remember"])).toEqual([]);
+    });
+
+    it("still matches keywords in prose around code blocks", () => {
+      const turns: Turn[] = [{ role: "user", text: "please remember:\n```\nfoo()\n```\nas requested", messageId: "u1" }];
+      expect(findSignalTurns(turns, ["remember"])).toEqual([0]);
+    });
+  });
 });
